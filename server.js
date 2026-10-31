@@ -153,6 +153,8 @@ function publicUser(u) {
     id: u.id, name: u.name, email: u.email || null, hasPassword: !!u.passHash, createdAt: u.createdAt,
     gold: u.gold, unlocked: u.unlocked, daily: u.daily, days: u.days || [],
     partner: p ? { id: p.id, name: p.name, since: u.coupleSince } : null,
+    friends: (u.friends || []).map(id => store.users[id]).filter(f => f && f.id !== u.partnerId)
+      .map(f => ({ id: f.id, name: f.name, since: (u.friendSince || {})[f.id] || null })).sort((a, b) => a.name.localeCompare(b.name, 'tr')),
   };
 }
 
@@ -189,7 +191,7 @@ function listItem(b, me, base) {
   const other = store.users[out ? b.toUserId : b.fromUserId];
   return {
     id: b.id, dir: out ? 'out' : 'in', who: out ? (b.to || (other && other.name) || 'Sevgilim') : (b.sign || (other && other.name) || 'Biri'),
-    toPartner: !!(out && b.toUserId && me.partnerId === b.toUserId), reason: b.reason, note: b.note, at: b.createdAt,
+    toPartner: !!(out && b.toUserId && me.partnerId === b.toUserId), withId: (out ? b.toUserId : b.fromUserId) || null, reason: b.reason, note: b.note, at: b.createdAt,
     openedAt: b.openedAt || null, items: b.items, hasImage: !!b.hasImage, link: `${base}/b/${b.id}`,
     deliverAt: b.deliverAt || null, delivered: isDelivered(b), reaction: b.reaction || null,
   };
@@ -253,6 +255,7 @@ function mergeGuest(guest, u) {
     const p = store.users[guest.partnerId];
     if (p && p.partnerId === guest.id) { p.partnerId = null; p.coupleSince = null; }
   }
+  for (const fid of guest.friends || []) { const f = store.users[fid]; if (f && f.id !== u.id) { removeFriend(guest, f); if (f.id !== u.partnerId) addFriend(u, f); } }
   if ((!u.days || !u.days.length) && guest.days && guest.days.length) u.days = guest.days;
   if (store.push[guest.id]) { store.push[u.id] = [...(store.push[u.id] || []), ...store.push[guest.id]].slice(-5); delete store.push[guest.id]; }
   for (const [c, inv] of Object.entries(store.invites)) if (inv.userId === guest.id) delete store.invites[c];
@@ -279,14 +282,30 @@ route('PATCH', /^\/api\/me$/, async (req) => {
   return { user: publicUser(me) };
 });
 
-// --- eşleşme
-route('POST', /^\/api\/invite$/, (req) => {
+// --- sevgili ve arkadaşlar
+// Sevgili tek kişidir ve ortak bahçeyi paylaşır; arkadaş sayısı sınırsızdır. İkisi de karşılıklıdır.
+const MAX_FRIENDS = 200;
+const friendsOf = u => (u.friends || []).filter(id => store.users[id]);
+function addFriend(a, b) {
+  a.friends = friendsOf(a); b.friends = friendsOf(b);
+  const now = Date.now();
+  if (!a.friends.includes(b.id)) { a.friends.push(b.id); (a.friendSince = a.friendSince || {})[b.id] = now; }
+  if (!b.friends.includes(a.id)) { b.friends.push(a.id); (b.friendSince = b.friendSince || {})[a.id] = now; }
+}
+function removeFriend(a, b) {
+  a.friends = friendsOf(a).filter(id => id !== b.id); if (a.friendSince) delete a.friendSince[b.id];
+  b.friends = friendsOf(b).filter(id => id !== a.id); if (b.friendSince) delete b.friendSince[a.id];
+}
+route('POST', /^\/api\/invite$/, async (req) => {
   const me = authUser(req);
-  if (me.partnerId) fail(409, 'Zaten bir eşin var.');
-  for (const [c, inv] of Object.entries(store.invites)) if (inv.userId === me.id) delete store.invites[c];
+  const { kind: k } = await json(req);
+  const kind = k === 'friend' ? 'friend' : 'partner';
+  if (kind === 'partner' && me.partnerId) fail(409, 'Zaten bir sevgilin ekli.');
+  if (kind === 'friend' && friendsOf(me).length >= MAX_FRIENDS) fail(409, 'Arkadaş listen dolu.');
+  for (const [c, inv] of Object.entries(store.invites)) if (inv.userId === me.id && (inv.kind || 'partner') === kind) delete store.invites[c];
   let code; do { code = randStr(6, CODE_CHARS); } while (store.invites[code]);
-  store.invites[code] = { userId: me.id, at: Date.now() }; store.save();
-  return { code, url: `${baseUrl(req)}/esles/${code}` };
+  store.invites[code] = { userId: me.id, at: Date.now(), kind }; store.save();
+  return { code, kind, url: `${baseUrl(req)}/esles/${code}` };
 });
 function liveInvite(code) {
   const inv = store.invites[String(code).toUpperCase()];
@@ -296,29 +315,45 @@ function liveInvite(code) {
 route('GET', /^\/api\/invite\/([A-Za-z0-9]{6})$/, (req, m) => {
   const inv = liveInvite(m[1]);
   if (!inv) fail(404, 'Bu davet kodu geçersiz ya da süresi dolmuş.');
-  const u = store.users[inv.userId];
-  return { fromName: u.name, taken: !!u.partnerId };
+  const u = store.users[inv.userId], me = authUser(req, false);
+  const kind = inv.kind || 'partner';
+  return { fromName: u.name, fromId: u.id, kind, taken: kind === 'partner' && !!u.partnerId, already: !!(me && (kind === 'partner' ? me.partnerId === u.id : friendsOf(me).includes(u.id))) };
 });
 route('POST', /^\/api\/invite\/([A-Za-z0-9]{6})\/accept$/, async (req, m) => {
   const me = authUser(req);
   limit('pair', me.id, 20, 600000);
   const code = m[1].toUpperCase(), inv = liveInvite(code);
   if (!inv) fail(404, 'Bu davet kodu geçersiz ya da süresi dolmuş.');
-  const other = store.users[inv.userId];
-  if (other.id === me.id) fail(400, 'Kendi davetini kabul edemezsin. Linki eşine gönder.');
-  if (other.partnerId) fail(409, `${other.name} başka biriyle eşleşmiş.`);
-  if (me.partnerId) fail(409, 'Zaten bir eşin var. Önce Hesabım’dan eşleşmeyi kaldır.');
+  const other = store.users[inv.userId], kind = inv.kind || 'partner';
+  if (other.id === me.id) fail(400, 'Kendi davetini kabul edemezsin. Linki karşı tarafa gönder.');
+  if (kind === 'friend') {
+    if (friendsOf(me).length >= MAX_FRIENDS || friendsOf(other).length >= MAX_FRIENDS) fail(409, 'Arkadaş listesi dolu.');
+    const was = friendsOf(me).includes(other.id);
+    addFriend(me, other); store.save(); // arkadaş davet linki 7 gün boyunca birden fazla kişiyle paylaşılabilir
+    if (!was) push.notify(other.id, { title: `${me.name} arkadaşın oldu`, body: 'Artık birbirinize doğrudan buket gönderebilirsiniz.', url: '/', tag: 'friend-' + me.id });
+    return { user: publicUser(me), kind };
+  }
+  if (other.partnerId === me.id) return { user: publicUser(me), kind };
+  if (other.partnerId) fail(409, `${other.name} başka biriyle ortak bahçe kurmuş.`);
+  if (me.partnerId) fail(409, 'Zaten bir sevgilin ekli. Önce Hesabım’dan kaldır.');
   const now = Date.now();
   me.partnerId = other.id; other.partnerId = me.id; me.coupleSince = now; other.coupleSince = now;
+  removeFriend(me, other); // sevgili listede ayrıca arkadaş olarak durmaz
   delete store.invites[code]; store.save();
-  push.notify(other.id, { title: 'Eşleştiniz', body: `${me.name} ile artık birbirinize buket gönderebilirsiniz.`, url: '/' });
-  return { user: publicUser(me) };
+  push.notify(other.id, { title: `${me.name} ile ortak bahçeniz açıldı`, body: 'Birbirinize gönderdiğiniz buketler artık Bahçemiz’de büyüyecek.', url: '/#bahcemiz' });
+  return { user: publicUser(me), kind };
 });
 route('POST', /^\/api\/unpair$/, (req) => {
   const me = authUser(req);
   const p = me.partnerId && store.users[me.partnerId];
   if (p && p.partnerId === me.id) { p.partnerId = null; p.coupleSince = null; }
   me.partnerId = null; me.coupleSince = null; store.save();
+  return { user: publicUser(me) };
+});
+route('DELETE', /^\/api\/friends\/([A-Za-z0-9]+)$/, (req, m) => {
+  const me = authUser(req), other = store.users[m[1]];
+  if (other) removeFriend(me, other); else me.friends = friendsOf(me).filter(id => id !== m[1]);
+  store.save();
   return { user: publicUser(me) };
 });
 
@@ -429,7 +464,12 @@ route('POST', /^\/api\/bouquets$/, async (req) => {
   const cost = catalog.bouquetCost(b.items);
   if (me.gold < cost) fail(402, `${cost - me.gold} altın eksik.`);
   let id; do { id = randStr(10); } while (store.bouquets[id]);
-  const toUserId = body.toPartner && me.partnerId && store.users[me.partnerId] ? me.partnerId : null;
+  let toUserId = null;
+  if (typeof body.toUserId === 'string' && body.toUserId) {
+    const ok = body.toUserId === me.partnerId || (me.friends || []).includes(body.toUserId);
+    if (!ok || !store.users[body.toUserId]) fail(403, 'Bu kişiye doğrudan buket gönderemezsin. Önce arkadaş olarak ekle.');
+    toUserId = body.toUserId;
+  } else if (body.toPartner && me.partnerId && store.users[me.partnerId]) toUserId = me.partnerId;
   let deliverAt = null;
   if (body.sendAt != null) {
     const t = Number(body.sendAt);
@@ -589,7 +629,7 @@ function notifyArrival(b) {
 }
 function dayTitle(u, x, when) {
   const p = u.partnerId && store.users[u.partnerId];
-  const pn = p ? p.name : 'Eşinin';
+  const pn = p ? p.name : 'Sevgilinin';
   if (x.type === 'partner_birthday') return `${p ? genitive(pn) : pn} doğum günü ${when}`;
   if (x.type === 'anniversary') { const n = x.year ? daysUntil(x.month, x.day).year - x.year : 0; return `${n > 0 ? n + '. ' : ''}yıldönümünüz ${when}`.replace(/^y/, 'Y'); }
   return `${x.label} ${when}`;
@@ -649,7 +689,7 @@ http.createServer(async (req, res) => {
     }
     if ((m = urlPath.match(/^\/esles\/([A-Za-z0-9]{6})\/?$/))) {
       const inv = liveInvite(m[1]), u = inv && store.users[inv.userId];
-      return page(req, res, u && { title: `${u.name} seni Demet’e davet etti`, desc: 'Eşleşin, birbirinize 3D buket gönderin.', url: `${baseUrl(req)}/esles/${m[1].toUpperCase()}` });
+      return page(req, res, u && { title: `${u.name} seni Demet’e davet etti`, desc: 'Bağlanın, birbirinize 3D buket gönderin.', url: `${baseUrl(req)}/esles/${m[1].toUpperCase()}` });
     }
     if (urlPath === '/' || urlPath === '/index.html') return page(req, res, null);
     if (urlPath === '/admin' || urlPath === '/admin/' || urlPath === '/admin.html') return adminPage(req, res);

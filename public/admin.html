@@ -236,7 +236,7 @@ async function loadStats() {
   $('stats').innerHTML = [
     ['Kayıtlı kullanıcı', fmt(s.registered), `bu hafta +${fmt(s.newRegistered7)} · ${fmt(s.guests)} misafir`],
     ['Aktif', fmt(s.active7), `son 7 gün · bugün ${fmt(s.active1)}`],
-    ['Eşleşen çift', fmt(s.couples), `${fmt(s.pushUsers)} kişide bildirim açık`],
+    ['Ortak bahçe', fmt(s.couples), `${fmt(s.pushUsers)} kişide bildirim açık`],
     ['Buket', fmt(s.bouquets), `bu hafta +${fmt(s.bouquets7)} · %${pct} açıldı${s.scheduled ? ` · ${fmt(s.scheduled)} planlı` : ''}`],
     ['Dolaşımdaki altın', `${coin}${fmt(s.goldRegistered)}`, `kayıtlılarda · misafirlerle ${fmt(s.gold)}`],
     ['Gelir', tl(s.revenue), `son 30 gün ${tl(s.revenue30)} · ${fmt(s.paidCount)} ödeme`],
@@ -258,10 +258,10 @@ function usersPane() {
   $('pane').innerHTML = `<div style="display:grid;gap:12px">
     <div class="bar">
       <input class="in" id="q" type="search" placeholder="Ad, e-posta ya da kullanıcı kimliği…" value="${esc(UQ.q)}" aria-label="Kullanıcı ara" autocomplete="off" spellcheck="false">
-      <div class="seg" role="group" aria-label="Filtre">${[['registered', 'Kayıtlı'], ['guest', 'Misafir'], ['paired', 'Eşli'], ['paid', 'Ödeme yapan'], ['all', 'Tümü']].map(([v, l]) => `<button type="button" data-f="${v}" aria-pressed="${UQ.filter === v}">${l}</button>`).join('')}</div>
+      <div class="seg" role="group" aria-label="Filtre">${[['registered', 'Kayıtlı'], ['guest', 'Misafir'], ['paired', 'Sevgilisi olan'], ['paid', 'Ödeme yapan'], ['all', 'Tümü']].map(([v, l]) => `<button type="button" data-f="${v}" aria-pressed="${UQ.filter === v}">${l}</button>`).join('')}</div>
       <select class="in" id="sort" aria-label="Sırala">${[['new', 'En yeni'], ['active', 'Son görülen'], ['gold', 'En çok altın'], ['bouquets', 'En çok buket'], ['paid', 'En çok ödeyen']].map(([v, l]) => `<option value="${v}" ${UQ.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     </div>
-    <div class="card"><table class="tbl"><thead><tr><th>Kullanıcı</th><th class="r">Altın</th><th class="hide-m">Eşi</th><th class="r hide-m">Gönderdi / Aldı</th><th class="r hide-m">Ödedi</th><th class="hide-m">Son görülme</th></tr></thead><tbody id="urows"></tbody></table>
+    <div class="card"><table class="tbl"><thead><tr><th>Kullanıcı</th><th class="r">Altın</th><th class="hide-m">Sevgilisi</th><th class="r hide-m">Gönderdi / Aldı</th><th class="r hide-m">Ödedi</th><th class="hide-m">Son görülme</th></tr></thead><tbody id="urows"></tbody></table>
     <div class="more" id="umore" hidden><button class="btn" type="button" id="moreBtn">Daha fazla göster</button></div></div>
     <p class="small muted" id="ucount"></p>
   </div>`;
@@ -338,13 +338,14 @@ function drawUser(j) {
       <section class="sec"><h3>Hesap</h3>
         <div class="kv">
           <div><span>Durum</span>${u.registered ? '<span class="tag ok">Kayıtlı</span>' : '<span class="tag">Misafir</span>'}</div>
-          <div><span>Eşi</span>${u.partner ? `<button class="copy" type="button" data-user="${u.partner.id}">${esc(u.partner.name)}</button>` : '—'}</div>
+          <div><span>Sevgilisi</span>${u.partner ? `<button class="copy" type="button" data-user="${u.partner.id}">${esc(u.partner.name)}</button>` : '—'}</div>
           <div><span>Katıldı</span>${fullDate(u.createdAt)}</div>
           <div><span>Son görülme</span>${ago(u.seenAt)}</div>
           <div><span>Buket</span>${fmt(u.sent)} gönderdi · ${fmt(u.recv)} aldı</div>
           <div><span>Ödeme</span>${u.paidCount ? `${tl(u.paidTL)} · ${u.paidCount} kez` : '—'}</div>
           <div><span>Bildirim</span>${u.devices ? `${u.devices} cihazda açık` : 'Kapalı'}</div>
-          <div><span>Seri</span>${u.daily && u.daily.streak ? `${u.daily.streak} gün` : '—'}</div>
+          <div><span>Arkadaş</span>${u.friends ? fmt(u.friends) : '—'}</div>
+          <div><span>Günlük hediye serisi</span>${u.daily && u.daily.streak ? `${u.daily.streak} gün` : '—'}</div>
         </div>
         ${u.unlocked.length ? `<div><span class="small muted" style="font-weight:600">Açtığı premium parçalar</span><div class="chips" style="margin-top:6px">${u.unlocked.map(k => `<span class="tag">${esc(k.split(':')[1])}</span>`).join('')}</div></div>` : ''}
       </section>

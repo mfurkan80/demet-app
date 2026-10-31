@@ -89,10 +89,10 @@ tree.view = dict(target=(0, 0, 1.55), dist=7.5, elev=12)
 
 
 # ------------------------------------------------------------------ bench
-def bench():
-    """Garden bench for two, 1.3 wide, seat at 0.44, facing -Y."""
+def bench(L=0.66, name="bench"):
+    """Garden bench (L=0.66: for two, 1.3 wide; L=0.3: single chair), seat at 0.44, facing -Y."""
     mb = MeshBuilder(["wood", "metal"])
-    L = 0.66
+    LX = L - 0.1
     for i in range(4):
         y = -0.17 + i * 0.112
         superq(mb, "wood", (0, y, 0.44), (L, 0.047, 0.018), e=0.18, seg=20, rings=10, shade=(0.62, 1.0))
@@ -107,7 +107,7 @@ def bench():
             return (p[0], p[1] * c - p[2] * s, p[1] * s + p[2] * c)
         superq(mb, "wood", (0, y, z), (L, 0.016, 0.045), e=0.18, seg=20, rings=10, shade=(0.62, 1.0), rot=rot)
     for s in (-1, 1):
-        x = s * 0.56
+        x = s * LX
         # back leg rising into the backrest
         back = bezier_path([(x, 0.16, 0.0), (x, 0.19, 0.43), (x, 0.24, 0.66), (x, 0.3, 0.92)], 6)
         tube(mb, "metal", back, 0.02, sides=10, shade=(0.6, 1.0))
@@ -125,11 +125,18 @@ def bench():
         tube(mb, "metal", sc, 0.008, sides=6, shade=(0.6, 0.9))
         for fy in (-0.24, 0.16):
             sphere(mb, "metal", (x, fy, 0.012), 0.03, squash=0.45, seg=10, rings=6)
-    tube(mb, "metal", [(-0.56, 0.0, 0.12), (0.56, 0.0, 0.12)], 0.011, sides=8, shade=(0.5, 0.8))
-    return mb.build("bench")
+    tube(mb, "metal", [(-LX, 0.0, 0.12), (LX, 0.0, 0.12)], 0.011, sides=8, shade=(0.5, 0.8))
+    return mb.build(name)
 
 
 bench.view = dict(target=(0, 0, 0.45), dist=2.6, elev=18)
+
+
+def chair():
+    return bench(0.31, "chair")
+
+
+chair.view = dict(target=(0, 0, 0.45), dist=1.8, elev=18)
 
 
 # ------------------------------------------------------------------ rose arch
@@ -359,7 +366,7 @@ def foliage():
 foliage.view = dict(target=(0, 0, 0.12), dist=1.1, elev=25)
 
 ALL = {
-    "g_tree": tree, "g_bench": bench, "g_arch": arch, "g_lantern": lantern, "g_ground": groundcover, "g_foliage": foliage,
+    "g_tree": tree, "g_bench": bench, "g_chair": chair, "g_arch": arch, "g_lantern": lantern, "g_ground": groundcover, "g_foliage": foliage,
     "g_bush1": make_bush(1, 0.36), "g_bush2": make_bush(2, 0.28), "g_bush3": make_bush(3, 0.46),
     "g_bushlo": make_bush(4, 0.46), "g_stone1": make_stone(1), "g_stone2": make_stone(2), "g_stone3": make_stone(3),
 }

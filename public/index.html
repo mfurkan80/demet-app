@@ -489,6 +489,39 @@ button { cursor: pointer; touch-action: manipulation; }
 .pill.av-btn.guest { width: auto; padding: 0 14px; font-family: var(--font-body); font-size: 14px; background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .pill .glbl { white-space: nowrap; }
 
+/* ---------- people + garden switch ---------- */
+.people { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px; margin: -2px; }
+.people::-webkit-scrollbar { display: none; }
+.person { flex: none; width: 88px; border: 1.5px solid var(--line); background: var(--surface); border-radius: var(--r-md); padding: 10px 6px 8px; display: grid; justify-items: center; gap: 2px; text-align: center; }
+.person .av { width: 42px; height: 42px; font-size: 18px; margin-bottom: 4px; }
+.person .av svg { width: 20px; height: 20px; }
+.person .pn { font-weight: 700; font-size: 13.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person .pr { font-size: 11.5px; color: var(--ink-2); font-weight: 600; }
+.person[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.person.add .av, .person.link .av { background: var(--surface-2); color: var(--ink-2); }
+.av.heart { background: var(--accent); color: var(--accent-ink); }
+.rcpt-hint { margin: -2px 0 0; font-size: 13px; color: var(--ink-2); }
+.frow { display: grid; grid-template-columns: 36px minmax(0,1fr) auto; gap: 10px; align-items: center; padding-block: 6px; }
+.frow .av { width: 36px; height: 36px; font-size: 15px; }
+.frow b { display: block; font-size: 14.5px; }
+.frow small { color: var(--ink-2); font-size: 12.5px; }
+.frow .rm { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); font-size: 16px; line-height: 1; padding: 0; color: var(--ink-2); }
+.acc .acts { margin-top: 2px; }
+.gswitch {
+  position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); top: calc(max(14px, env(safe-area-inset-top, 0px)) + 56px);
+  display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 80%, transparent);
+  backdrop-filter: blur(12px); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); box-shadow: 0 10px 30px -18px rgba(0,0,0,.45);
+}
+.gswitch button { border: 0; background: transparent; border-radius: 999px; height: 34px; padding: 0 16px; font-weight: 700; font-size: 14px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.gswitch button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.gswitch svg { width: 15px; height: 15px; }
+@media (min-width: 900px) { .gswitch { top: 18px; } }
+.app.welcoming .gswitch { opacity: 0; pointer-events: none; }
+.invite-card { border-radius: var(--r-md); padding: 16px; background: var(--accent-soft); border: 1.5px solid color-mix(in srgb, var(--accent) 28%, transparent); display: grid; gap: 10px; }
+.invite-card strong { font-family: var(--font-display); font-size: 19px; line-height: 1.15; letter-spacing: -0.01em; }
+.invite-card p { margin: 0; font-size: 14px; color: var(--ink-2); }
+.invite-card .cta { justify-self: start; }
+
 /* ---------- received bouquet ---------- */
 .gift { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding-inline: max(16px, env(safe-area-inset-left, 0px)); transition: opacity .45s ease, transform .45s ease; }
 .gift.out { opacity: 0; transform: scale(.94); pointer-events: none; }
@@ -551,6 +584,10 @@ a.cta { text-decoration: none; justify-content: center; }
       <div class="ring" aria-hidden="true"><img src="thumbs/rose.webp" alt="" width="64" height="64"></div>
       <strong>Buketine ilk çiçeği ekle</strong>
       <span>Listeden bir çiçeğe dokun, masaya gelsin.</span>
+    </div>
+    <div class="gswitch" id="gswitch" role="group" aria-label="Bahçe" hidden>
+      <button type="button" data-gmode="mine" aria-pressed="true">Bahçem</button>
+      <button type="button" data-gmode="ours" aria-pressed="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3.1 4.5 6.7 4.5c2.1 0 3.6 1.2 4.3 2.4.7-1.2 2.2-2.4 4.3-2.4 3.6 0 5.8 3.7 4.3 7.2C19.5 16.4 12 21 12 21z"/></svg>Bahçemiz</button>
     </div>
     <button class="inbox" id="inbox" type="button" hidden><span class="pulse" aria-hidden="true"></span><span id="inboxText"></span><b>Aç</b></button>
     <div class="gift" id="gift" hidden>
@@ -1399,7 +1436,15 @@ function bedSlot(i) {
   const side = [-1, 1, 1, -1][k], off = [0.8, 0.82, 1.66, 1.62][k] + (R() - 0.5) * 0.16;
   return { x: pathX(z) + side * off, z, side };
 }
-function gardenList() { return W.history.filter(e => !(e.deliverAt && !e.delivered)).sort((a, b) => a.at - b.at); }
+// Bahçem: every bouquet I sent or received. Bahçemiz: only those between me and my partner.
+let gMode = 'mine';
+function gardenEntries(mode = gMode) {
+  const all = W.history.filter(e => !(e.deliverAt && !e.delivered));
+  if (mode !== 'ours') return all;
+  const p = online() && ME.partner;
+  return p ? all.filter(e => e.withId === p.id) : [];
+}
+function gardenList() { return gardenEntries().slice().sort((a, b) => a.at - b.at); }
 
 /* ---- static set: ground, grass, path, trees, bench, arch, lanterns, hedges */
 function groundY(x, z) {
@@ -1475,12 +1520,11 @@ function buildWorld() {
   });
   // set pieces at the far end
   TREES.forEach(t => { const m = dress(TL.g_tree.clone(true), { blossom: t.blossom }); m.position.set(t.x, 0, t.z); m.rotation.y = t.ry; m.scale.setScalar(t.s); gWorld.add(m); });
-  const bench = dress(TL.g_bench.clone(true)); bench.position.set(-1.45, 0, -3.0); bench.rotation.y = 0.32; gWorld.add(bench);
   const arch = dress(TL.g_arch.clone(true)); arch.position.set(pathX(z0), 0, z0); gWorld.add(arch);
   // lanterns along the path
   const glowT = gFx.glowTex || (gFx.glowTex = softTex('rgba(255,214,150,1)', 'rgba(255,170,80,0)'));
   let li = 0;
-  for (let z = z0 + 0.75; z < z1 + 0.2; z += 2.1, li++) {
+  for (let z = z0 + 1.35; z < z1 + 0.4; z += 2.1, li++) {
     const side = li % 2 ? -1 : 1, lp = dress(TL.g_lantern.clone(true));
     lp.position.set(pathX(z) + side * 0.5, 0, z); lp.rotation.y = R() * 0.6; gWorld.add(lp); gFx.lamps.push(lp);
     const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowT, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
@@ -1678,6 +1722,68 @@ function expand(items, cap) {
   return m.slice(0, cap - Math.min(2, f.length)).concat(f.slice(0, Math.min(2, f.length)));
 }
 
+/* ---- what makes each garden its own: a bench for two or a single chair, and a sign hung in the arch */
+const gSet = new THREE.Group(); gScene.add(gSet);
+let gSetKey = '';
+function archSignTex(title, sub) {
+  const c = document.createElement('canvas'); c.width = 768; c.height = 230;
+  const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 230); gr.addColorStop(0, '#F1E2C4'); gr.addColorStop(1, '#E2CDA4');
+  g.fillStyle = gr; g.fillRect(0, 0, 768, 230);
+  g.strokeStyle = 'rgba(120,80,40,.12)'; g.lineWidth = 2;
+  for (let y = 12; y < 230; y += 15) { g.beginPath(); g.moveTo(0, y + Math.sin(y) * 3); g.bezierCurveTo(250, y + 6, 520, y - 6, 768, y + Math.cos(y) * 3); g.stroke(); }
+  g.strokeStyle = 'rgba(110,70,35,.45)'; g.lineWidth = 6; g.strokeRect(12, 12, 744, 206);
+  g.fillStyle = '#4A2E1E'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  let fs = 96; g.font = `600 ${fs}px Caveat, cursive`;
+  while (g.measureText(title).width > 690 && fs > 44) { fs -= 4; g.font = `600 ${fs}px Caveat, cursive`; }
+  g.fillText(title, 384, sub ? 96 : 115);
+  if (sub) { g.font = '600 28px Figtree, system-ui, sans-serif'; g.fillStyle = 'rgba(74,46,30,.7)'; g.fillText(sub, 384, 174); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function buildSet() {
+  const ours = gMode === 'ours', p = online() && ME.partner;
+  const me = ME && ME.name && ME.name !== 'Misafir' ? ME.name : '';
+  const title = ours ? (p ? `${me || 'Sen'} & ${p.name}` : 'Bahçemiz') : (me ? `${genitive(me)} bahçesi` : 'Bahçem');
+  const sub = ours ? 'ikimizin bahçesi' : 'sevgiyle büyüyen bahçe';
+  const key = `${gMode}|${title}|${sub}`;
+  if (key === gSetKey) return;
+  gSetKey = key;
+  if (gFx.setFace) { gFx.setFace.map.dispose(); gFx.setFace.dispose(); gFx.setFace = null; }
+  gSet.clear();
+  const seat = dress(TL[ours || !TL.g_chair ? 'g_bench' : 'g_chair'].clone(true));
+  seat.position.set(ours ? -1.45 : -1.6, 0, -3.0); seat.rotation.y = 0.32; gSet.add(seat);
+  const ax = pathX(gBox.z0), az = gBox.z0, wood = pmat('wood'), metal = pmat('metal');
+  const face = new THREE.MeshStandardMaterial({ map: archSignTex(title, sub), roughness: 0.85, envMapIntensity: 0.3 }); gFx.setFace = face;
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.29, 0.03), [wood, wood, wood, wood, face, wood]);
+  plank.position.set(ax, 1.82, az); plank.castShadow = true;
+  gSet.add(plank);
+  for (const s of [-1, 1]) {
+    const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.22, 6), metal);
+    ch.position.set(ax + s * 0.36, 2.08, az); gSet.add(ch);
+  }
+  // the shared garden gets warm string lights draped from the trees to the arch
+  gFx.bulbs = null;
+  if (ours) {
+    const strings = [[new THREE.Vector3(TREES[0].x + 0.6, 2.05, TREES[0].z + 0.5), new THREE.Vector3(ax - 0.55, 2.0, az)],
+      [new THREE.Vector3(ax + 0.55, 2.0, az), new THREE.Vector3(TREES[1].x - 0.6, 1.9, TREES[1].z + 0.6)]];
+    const pts = [], wire = [];
+    for (const [a, b] of strings) {
+      const n = 22, sag = 0.45;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n, p = a.clone().lerp(b, t); p.y -= sag * 4 * t * (1 - t);
+        wire.push(p); if (i % 2 === 1) pts.push(p.clone().add(new THREE.Vector3(0, -0.03, 0)));
+      }
+      wire.push(null);
+    }
+    const segs = []; for (let i = 0; i < wire.length - 1; i++) if (wire[i] && wire[i + 1]) segs.push(wire[i], wire[i + 1]);
+    gSet.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(segs), new THREE.LineBasicMaterial({ color: '#3A3430' })));
+    const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.022, 10, 8), new THREE.MeshBasicMaterial({ color: '#FFE2A0' }), pts.length);
+    const m4 = new THREE.Matrix4(); pts.forEach((p, i) => bulbs.setMatrixAt(i, m4.makeTranslation(p.x, p.y, p.z))); gSet.add(bulbs);
+    const glow = new THREE.Points(new THREE.BufferGeometry().setFromPoints(pts), new THREE.PointsMaterial({ map: gFx.glowTex || (gFx.glowTex = softTex('rgba(255,214,150,1)', 'rgba(255,170,80,0)')), size: 0.32, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: '#FFD9A0' }));
+    gSet.add(glow); gFx.bulbs = glow; glow.material.opacity = isDark() ? 1 : 0.35;
+  }
+  gShadowDirty = true;
+}
 function buildGarden() {
   if (!TL.rose || !TL.g_tree) return;
   if (!gBuilt) {
@@ -1698,7 +1804,7 @@ function buildGarden() {
   if (key !== gWorldKey) { gWorldKey = key; buildWorld(); }
   beds.clear(); gFx.signs.forEach(m => { m.map.dispose(); m.dispose(); }); gFx.signs = [];
   bedMeshes.children.forEach(m => m.geometry.dispose()); bedMeshes.clear();
-  plantBeds(list); gShadowDirty = true;
+  plantBeds(list); buildSet(); gShadowDirty = true;
   gFx.motes.position.set(0, 0, gBox.cz); gardenTheme();
 }
 function gardenTheme() {
@@ -1724,6 +1830,7 @@ function gardenTheme() {
   const mu = gFx.motes.material.uniforms; mu.night.value = night ? 1 : 0; mu.color.value.set(night ? '#E4FF8A' : '#FFF4D2'); mu.size.value = night ? 0.06 : 0.028;
   pmat('glass').emissiveIntensity = night ? 3.2 : 0.25;
   gFx.glows.forEach(g => { g.material.opacity = night ? 0.9 : 0; });
+  if (gFx.bulbs) gFx.bulbs.material.opacity = night ? 1 : 0.35;
   gFx.lights.forEach(l => { l.intensity = night ? 5 : 0; });
   gShadowDirty = true;
 }
@@ -1776,7 +1883,8 @@ function placeCamera() { const d = fitDist(); camera.position.set(0, 0.56 + d * 
 function placeGardenCam() {
   const v = 2 * Math.tan(THREE.MathUtils.degToRad(gCam.fov / 2)), depth = gBox.z1 - gBox.z0;
   const d = Math.min(11, Math.max(4.6, 3.4 / (v * gCam.aspect), depth * 1.25 + 2.6));
-  gControls.target.set(pathX(gBox.z0 + 1) * 0.5, 0.85, gBox.z0 + 0.9);
+  // on tall phone screens look a little higher so the arch sign clears the garden switch
+  gControls.target.set(pathX(gBox.z0 + 1) * 0.5, gCam.aspect < 0.95 ? 1.08 : 0.85, gBox.z0 + 0.9);
   const dir = new THREE.Vector3(0.26, 0.3, 0.92).normalize();
   gCam.position.copy(gControls.target).addScaledVector(dir, d); gControls.update();
   gBase = { theta: Math.atan2(dir.x, dir.z) }; gUser = false;
@@ -1993,12 +2101,13 @@ function renderTop() {
     $('subtitle').textContent = S.items.length ? `${m} dal çiçek${f ? `, ${f} dal yeşillik` : ''}` : 'Buketini kendin yap';
     $('navBtn').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 21v-8"/><path d="M12 13c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 15c0-3-2.5-5-6-5 0 3 2.5 5 6 5z"/><path d="M5 21h14"/></svg><span class="lbl">Bahçe</span>`;
   } else {
-    $('title').textContent = 'Bahçemiz';
-    const stems = W.history.reduce((s, e) => s + e.items.reduce((a, it) => a + it[2], 0), 0);
-    $('subtitle').textContent = `${W.history.length} buket, ${stems} dal çiçek`;
+    const list = gardenEntries(), p = online() && ME.partner;
+    const stems = list.reduce((s, e) => s + e.items.reduce((a, it) => a + it[2], 0), 0);
+    $('title').textContent = gMode === 'ours' ? 'Bahçemiz' : 'Bahçem';
+    $('subtitle').textContent = gMode === 'ours' ? (p ? `${p.name} ile · ${list.length} buket` : 'Ortak bahçe') : `${list.length} buket, ${stems} dal çiçek`;
     $('navBtn').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 22V12"/><circle cx="12" cy="8" r="3.2"/><path d="M8.5 11.5 6 21m9.5-9.5L18 21"/></svg><span class="lbl">Stüdyo</span>`;
   }
-  renderGold();
+  renderGold(); renderSwitch();
 }
 function renderTabs() {
   if (viewing) { $tabs.innerHTML = ''; return; }
@@ -2008,8 +2117,8 @@ function renderTabs() {
       return `<button class="tab" role="tab" id="tab-${id}" data-tab="${id}" aria-selected="${id === tab}">${label}${n ? `<span class="n">${n}</span>` : ''}</button>`;
     }).join('');
   } else {
-    const cin = W.history.filter(e => e.dir === 'in').length, cout = W.history.length - cin;
-    $tabs.innerHTML = [['all', 'Tümü', W.history.length], ['in', 'Gelen', cin], ['out', 'Giden', cout]].map(([id, label, n]) =>
+    const list = gardenEntries(), cin = list.filter(e => e.dir === 'in').length, cout = list.length - cin;
+    $tabs.innerHTML = [['all', 'Tümü', list.length], ['in', 'Gelen', cin], ['out', 'Giden', cout]].map(([id, label, n]) =>
       `<button class="tab" role="tab" id="gtab-${id}" data-gtab="${id}" aria-selected="${id === gFilter}">${label}<span class="n">${n}</span></button>`).join('');
   }
 }
@@ -2101,7 +2210,8 @@ function renderFoot() {
     return;
   }
   if (view === 'garden') {
-    $foot.innerHTML = `<div class="meta">Aranızda gönderilen her buket bu bahçeye ekilir.</div><button class="cta" id="newBtn" data-foot="studio">Yeni buket yap</button>`;
+    const p = online() && ME.partner;
+    $foot.innerHTML = `<div class="meta">${gMode === 'ours' ? (p ? `${esc(p.name)} ile birbirinize gönderdikleriniz burada büyür.` : 'Sevgilini ekle, ortak bahçeniz açılsın.') : 'Gönderdiğin ve sana gelen her buket bu bahçeye ekilir.'}</div><button class="cta" id="newBtn" data-foot="studio">${gMode === 'ours' && p ? `${esc(toName(p.name))} buket yap` : 'Yeni buket yap'}</button>`;
     return;
   }
   const c = cost(), n = S.items.length;
@@ -2125,10 +2235,12 @@ $pane.addEventListener('click', e => {
     if (b.dataset.act === 'reactNote') return sendReaction('note');
     if (b.dataset.act === 'story') return recordStory();
     if (b.dataset.act === 'recvShare') shareLink(location.href.split('#')[0], `${fromName(viewing.data.sign || 'Biri')} gelen buket`);
-    if (b.dataset.act === 'recvGarden') location.href = '/#bahce';
+    if (b.dataset.act === 'recvGarden') location.href = '/#' + preferredGarden();
     return;
   }
   const act = b.dataset.act, val = b.dataset.val, fid = b.id;
+  if (act === 'invitePartner') { if (online()) openInvite('partner'); return; }
+  if (act === 'buildFor') { W.lastTo = ME.partner.id; save(); location.hash = ''; return; }
   let sync = true;
   switch (act) {
     case 'plus':
@@ -2186,7 +2298,7 @@ $foot.addEventListener('click', e => {
   if (f === 'home') { location.href = '/'; return; }
   if (f === 'wrap') { S.wrapped = true; tab = 'wrap'; refresh(); }
   else if (f === 'send') openSend();
-  else if (f === 'studio') location.hash = '';
+  else if (f === 'studio') { if (view === 'garden' && gMode === 'ours' && online() && ME.partner) { W.lastTo = ME.partner.id; save(); } location.hash = ''; }
 });
 
 /* ---- sheets */
@@ -2285,7 +2397,7 @@ function openShop() {
   });
 }
 $('goldBtn').addEventListener('click', openShop);
-$('navBtn').addEventListener('click', () => { if (viewing) { location.href = '/#bahce'; return; } location.hash = view === 'studio' ? 'bahce' : ''; });
+$('navBtn').addEventListener('click', () => { if (viewing) { location.href = '/#' + preferredGarden(); return; } location.hash = view === 'studio' ? preferredGarden() : ''; });
 
 /* ---- send */
 function compact(list = S.items) {
@@ -2306,12 +2418,23 @@ function whenOptions() {
   return o;
 }
 function openSend() {
-  const snap = snapshot(), c = cost(), enough = W.gold >= c.total, partner = online() && ME.partner;
+  const snap = snapshot(), c = cost(), enough = W.gold >= c.total;
   if (online() && !S.sign && ME.name !== 'Misafir') S.sign = ME.name;
+  // recipients: the partner first, then friends, then "send as a link" to anyone
+  const people = online() ? [...(ME.partner ? [{ id: ME.partner.id, name: ME.partner.name, partner: true }] : []), ...(ME.friends || []).map(f => ({ id: f.id, name: f.name }))] : [];
+  let rcpt = people.find(x => x.id === W.lastTo) || (W.lastTo === '' ? null : people.find(x => x.partner) || null);
+  const HEART_I = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3.1 4.5 6.7 4.5c2.1 0 3.6 1.2 4.3 2.4.7-1.2 2.2-2.4 4.3-2.4 3.6 0 5.8 3.7 4.3 7.2C19.5 16.4 12 21 12 21z"/></svg>';
+  const LINK_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>';
+  const PLUS_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+  const hintFor = r => !online() ? '' : r ? (r.partner ? 'Ortak bahçenize eklenir, ona bildirim gider.' : 'Doğrudan ona gider, bildirim alır. Senin bahçende de durur.') : 'Bir link oluşur. WhatsApp’tan istediğin kişiye atarsın; açan kişi hiçbir şey indirmeden buketi görür.';
   openSheet(`<div class="snaprow"><img src="${snap}" alt="Buketinin görüntüsü" width="96" height="96"><div><h3 id="sheetTitle">Buketi gönder</h3><p class="sub" style="margin-top:4px">${summary(compact())}</p></div></div>
-    ${partner ? `<label class="choice"><input type="checkbox" id="toPartner" checked><span><b>${esc(partner.name)}</b> için gönder<small>Doğrudan bahçesine düşer, bildirimleri açıksa hemen haber alır.</small></span></label>` : ''}
+    ${online() ? `<div class="group"><h2>Kime?</h2><div class="people" role="radiogroup" aria-label="Kime gönderilecek" id="people">
+        ${people.map(x => `<button type="button" class="person" role="radio" aria-checked="${!!rcpt && rcpt.id === x.id}" data-p="${x.id}"><span class="av ${x.partner ? 'heart' : ''}" aria-hidden="true">${x.partner ? HEART_I : esc(x.name.charAt(0).toLocaleUpperCase('tr'))}</span><span class="pn">${esc(x.name)}</span><span class="pr">${x.partner ? 'Sevgilin' : 'Arkadaşın'}</span></button>`).join('')}
+        <button type="button" class="person link" role="radio" aria-checked="${!rcpt}" data-p=""><span class="av" aria-hidden="true">${LINK_I}</span><span class="pn">Link ile</span><span class="pr">Herkese</span></button>
+        <button type="button" class="person add" id="addPerson"><span class="av" aria-hidden="true">${PLUS_I}</span><span class="pn">Kişi ekle</span><span class="pr">Davet et</span></button>
+      </div><p class="rcpt-hint" id="rcptHint">${hintFor(rcpt)}</p></div>` : ''}
     <div class="linkrow" style="grid-template-columns: 1fr 1fr">
-      <div class="field" id="toField" ${partner ? 'hidden' : ''}><label for="toIn">Kime</label><input id="toIn" name="to" value="${esc(partner ? partner.name : S.to)}" maxlength="24" autocomplete="off" placeholder="Örneğin Deniz…"></div>
+      <div class="field" id="toField" ${rcpt ? 'hidden' : ''}><label for="toIn">Kartta kime yazsın</label><input id="toIn" name="to" value="${esc(rcpt ? rcpt.name : S.to)}" maxlength="24" autocomplete="off" placeholder="Örneğin Deniz…"></div>
       <div class="field"><label for="fromIn">Senin adın</label><input id="fromIn" name="from" value="${esc(S.sign)}" maxlength="24" autocomplete="given-name" placeholder="Örneğin Furkan…"></div>
     </div>
     <div class="group"><h2>Ne için?</h2><div class="chips" id="sendReasons">${REASONS.map((r, i) => `<button class="chip" aria-pressed="${r === S.reason}" data-r="${esc(r)}" id="sr-${i}">${r}</button>`).join('')}</div></div>
@@ -2320,17 +2443,26 @@ function openSend() {
     <div class="lines">${Object.entries(c.lines).map(([t, l]) => `<div><span>${l.n} ${lower(ALL[t].name)} × ${l.p}</span><span>${l.n * l.p} altın</span></div>`).join('')}
       <div class="tot"><span>Toplam</span><span>${c.total ? c.total + ' altın' : 'Ücretsiz'}</span></div>
       ${enough ? '' : `<div class="warn"><span>${c.total - W.gold} altın eksik</span></div>`}</div>
-    ${online() ? `<p class="small">${partner ? 'Ayrıca bir link oluşur, istersen başkasına da gönderebilirsin.' : 'Gönderince bir link oluşur. Linki WhatsApp’tan atarsın, açan kişi hiçbir şey indirmeden buketini görür.'}</p>` : '<p class="small">Bu önizlemede link oluşturulamıyor, buket sadece bahçenize eklenir. Link ile gönderim için projeyi npm start ile çalıştır.</p>'}
+    ${online() ? '' : '<p class="small">Bu önizlemede link oluşturulamıyor, buket sadece bahçenize eklenir. Link ile gönderim için projeyi npm start ile çalıştır.</p>'}
     <p class="err" id="sendErr" role="alert" hidden></p>
-    <div class="acts">${enough ? `<button class="cta" id="doSend" data-autofocus>${online() ? (partner ? 'Gönder' : 'Link oluştur') : 'Gönder'}</button>` : `<button class="cta" id="toShop2" data-autofocus>Altın al</button>`}</div>`, sh => {
+    <div class="acts">${enough ? `<button class="cta" id="doSend" data-autofocus>${online() && !rcpt ? 'Link oluştur' : 'Gönder'}</button>` : `<button class="cta" id="toShop2" data-autofocus>Altın al</button>`}</div>`, sh => {
     sh.querySelector('#sendReasons').onclick = e => {
       const b = e.target.closest('[data-r]'); if (!b) return; S.reason = b.dataset.r;
       sh.querySelectorAll('[data-r]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); drawCard(); save();
     };
-    const tp = sh.querySelector('#toPartner'), go = sh.querySelector('#doSend');
+    const go = sh.querySelector('#doSend');
     let sendAt = null;
-    const label = () => { if (go) go.textContent = sendAt ? 'Planla' : (tp && tp.checked) || !online() ? 'Gönder' : 'Link oluştur'; };
-    if (tp) tp.onchange = () => { sh.querySelector('#toField').hidden = tp.checked; if (!tp.checked) sh.querySelector('#toIn').value = ''; label(); };
+    const label = () => { if (go) go.textContent = sendAt ? 'Planla' : rcpt || !online() ? (rcpt ? `${toName(rcpt.name)} gönder` : 'Gönder') : 'Link oluştur'; };
+    const pp = sh.querySelector('#people');
+    if (pp) pp.onclick = e => {
+      const b = e.target.closest('[data-p]'); if (!b) return;
+      rcpt = people.find(x => x.id === b.dataset.p) || null;
+      pp.querySelectorAll('[data-p]').forEach(x => x.setAttribute('aria-checked', String(x === b)));
+      sh.querySelector('#toField').hidden = !!rcpt; sh.querySelector('#toIn').value = rcpt ? rcpt.name : '';
+      sh.querySelector('#rcptHint').textContent = hintFor(rcpt); label();
+    };
+    const ap = sh.querySelector('#addPerson'); if (ap) ap.onclick = () => { closeSheet(); setTimeout(openAccount, 300); };
+    label();
     const wc = sh.querySelector('#whenChips');
     if (wc) {
       const opts = whenOptions(), wi = sh.querySelector('#whenIn'), wt = sh.querySelector('#whenText');
@@ -2353,10 +2485,11 @@ function openSend() {
       pick(S.planDay && opts.some(o => o.id === 'day:' + S.planDay) ? 'day:' + S.planDay : 'now');
     }
     if (go) go.onclick = async () => {
-      const toP = !!(tp && tp.checked);
-      S.to = toP ? partner.name : (sh.querySelector('#toIn').value.trim() || 'Sevgilim');
+      const toP = !!rcpt;
+      S.to = rcpt ? rcpt.name : (sh.querySelector('#toIn').value.trim() || 'Sevgilim');
+      W.lastTo = rcpt ? rcpt.id : '';
       S.sign = sh.querySelector('#fromIn').value.trim();
-      const entry = { id: 'e' + Date.now(), dir: 'out', who: S.to, reason: S.reason, note: S.note.trim(), at: Date.now(), items: compact(), snap, mine: '' };
+      const entry = { id: 'e' + Date.now(), dir: 'out', who: S.to, withId: rcpt ? rcpt.id : null, reason: S.reason, note: S.note.trim(), at: Date.now(), items: compact(), snap, mine: '' };
       if (online()) {
         const err = sh.querySelector('#sendErr');
         go.disabled = true; go.textContent = toP ? 'Gönderiliyor…' : 'Link oluşturuluyor…'; err.hidden = true;
@@ -2365,7 +2498,7 @@ function openSend() {
           const bouquet = { items: S.items.map(i => ({ type: i.type, color: i.color })), paperStyle: S.paperStyle, paper: S.paper, tissue: S.tissue,
             ribbonStyle: S.ribbonStyle, ribbon: S.ribbon, d: S.d, showCard: S.showCard, note: S.note.trim(), sign: S.sign, reason: S.reason, to: S.to };
           if (sendAt && sendAt < Date.now() + 60000) throw new Error('Gönderim zamanı geçmiş. Yeniden seç.');
-          const out = await api('/bouquets', { body: { bouquet, snap, toPartner: toP, ...(sendAt ? { sendAt } : {}) } });
+          const out = await api('/bouquets', { body: { bouquet, snap, ...(rcpt ? { toUserId: rcpt.id } : {}), ...(sendAt ? { sendAt } : {}) } });
           applyMe(out);
           Object.assign(entry, { id: out.id, remoteId: out.id, link: out.url, toPartner: out.toPartner, openedAt: null, preview: snap, snap: `/api/bouquets/${out.id}/image.jpg`,
             deliverAt: out.deliverAt, delivered: !out.deliverAt });
@@ -2428,10 +2561,10 @@ async function openShare(entry) {
   const head = entry.deliverAt && !entry.delivered
     ? `<h3 id="sheetTitle">Buket planlandı</h3><p class="sub" style="margin-top:4px">${fmtDT(entry.deliverAt)} ${esc(toName(entry.who))} gidecek. O zamana kadar link açılsa bile zarf kapalı kalır.</p>`
     : entry.toPartner
-    ? `<h3 id="sheetTitle">Buket ${esc(toName(entry.who))} gitti</h3><p class="sub" style="margin-top:4px">Bahçesine düştü. Bildirimleri açıksa hemen haber alacak. İstersen linki de gönderebilirsin.</p>`
+    ? `<h3 id="sheetTitle">Buket ${esc(toName(entry.who))} gitti</h3><p class="sub" style="margin-top:4px">${online() && ME.partner && entry.withId === ME.partner.id ? 'Ortak bahçenize ekildi.' : 'Onun bahçesine ve seninkine ekildi.'} Bildirimleri açıksa hemen haber alacak.</p>`
     : `<h3 id="sheetTitle">Buketin hazır</h3><p class="sub" style="margin-top:4px">Linki ${esc(toName(entry.who))} gönder. Açınca buket gözünün önünde sarılacak.</p>`;
   openSheet(`<div class="snaprow"><img src="${entry.preview || entry.snap}" alt="Buketinin görüntüsü" width="96" height="96"><div>${head}</div></div>${ask}${linkBlock(entry)}
-    ${online() && !ME.partner ? '<p class="small">Eşini Hesabım’dan eklersen sonraki buketler doğrudan onun bahçesine düşer.</p>' : ''}`, sh => {
+    ${online() && !ME.partner ? '<p class="small">Sevgilini ya da arkadaşlarını Hesabım’dan eklersen sonraki buketler doğrudan onlara gider.</p>' : ''}`, sh => {
     bindLink(sh, entry);
     const a = sh.querySelector('#askPush'); if (a) a.onclick = async () => { if (await enablePush()) { a.closest('.tip').remove(); toast('Bildirimler açıldı'); } };
   });
@@ -2439,7 +2572,8 @@ async function openShare(entry) {
 
 /* ---- garden pane + entry detail */
 function streak() {
-  const days = new Set(W.history.filter(e => e.dir === 'out').map(e => dayKey(e.at)));
+  // Bahçem: days I sent something. Bahçemiz: days either of us sent the other something.
+  const days = new Set(gardenEntries().filter(e => gMode === 'ours' || e.dir === 'out').map(e => dayKey(e.at)));
   let n = 0, d = Date.now();
   if (!days.has(dayKey(d))) d -= DAY;
   while (days.has(dayKey(d))) { n++; d -= DAY; }
@@ -2454,15 +2588,39 @@ function thumbHTML(e) {
   if (e.snap) return `<div class="thumb"><img src="${e.snap}" alt="" width="58" height="58" loading="lazy"></div>`;
   return `<div class="thumb col">${e.items.slice(0, 3).map(([t]) => `<img src="thumbs/${t}.webp" alt="" width="40" height="40" loading="lazy">`).join('')}</div>`;
 }
+function openInvite(kind) {
+  openSheet(`<h3 id="sheetTitle">${kind === 'friend' ? 'Arkadaşını davet et' : 'Sevgilini davet et'}</h3>
+    <p class="sub">${kind === 'friend' ? 'Linki açan arkadaşın olur; birbirinize doğrudan buket gönderirsiniz.' : 'Linki açıp kabul edince ortak bahçeniz açılır.'}</p><div id="invBody"><p class="small">Davet hazırlanıyor…</p></div>`, async sh => {
+    try {
+      const inv = await api('/invite', { body: { kind } });
+      sh.querySelector('#invBody').innerHTML = inviteBlock(inv);
+      const li = sh.querySelector('#invLink'); li.onfocus = () => li.select();
+      sh.querySelector('#copyInv').onclick = () => copyText(inv.url, li);
+    } catch (e) { sh.querySelector('#invBody').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  });
+}
 function renderGardenPane() {
-  const st = streak(), stems = W.history.reduce((s, e) => s + e.items.reduce((a, it) => a + it[2], 0), 0);
-  const week = Array.from({ length: 7 }, (_, i) => { const d = Date.now() - (6 - i) * DAY; return { on: W.history.some(e => e.dir === 'out' && dayKey(e.at) === dayKey(d)), l: new Intl.DateTimeFormat('tr-TR', { weekday: 'short' }).format(d).slice(0, 3) }; });
-  const list = W.history.filter(e => gFilter === 'all' || e.dir === gFilter).sort((a, b) => b.at - a.at);
-  $pane.innerHTML = `<div class="gsum"><div><b>${W.history.length}</b><span>buket</span></div><div><b>${stems}</b><span>dal çiçek</span></div><div><b>${st}</b><span>gün seri</span></div></div>
-    <div class="week" aria-label="Son 7 gün">${week.map(w => `<i class="${w.on ? 'on' : ''}">${w.l}</i>`).join('')}<span>${st ? `${st} gündür çiçek gönderiyorsun` : 'Bugün bir buket gönder, seri başlasın'}</span></div>
+  const all = gardenEntries(), p = online() && ME.partner, ours = gMode === 'ours';
+  if (ours && !p) {
+    $pane.innerHTML = `<div class="invite-card"><strong>Ortak bahçeniz sizi bekliyor</strong>
+      <p>Sevgilini ya da eşini ekle. Birbirinize gönderdiğiniz her buket burada, ikinizin bahçesinde büyüsün. Bahçeyi ikiniz de aynı görürsünüz.</p>
+      <button class="cta" data-act="invitePartner" id="invitePartner">${online() ? 'Sevgilini davet et' : 'Sunucu gerekli'}</button></div>
+      <p class="small">Davet linkini WhatsApp’tan atabilirsin. Kabul edince ikinize de haber gelir.</p>`;
+    return;
+  }
+  const st = streak(), stems = all.reduce((s, e) => s + e.items.reduce((a, it) => a + it[2], 0), 0);
+  const week = Array.from({ length: 7 }, (_, i) => { const d = Date.now() - (6 - i) * DAY; return { on: all.some(e => (ours || e.dir === 'out') && dayKey(e.at) === dayKey(d)), l: new Intl.DateTimeFormat('tr-TR', { weekday: 'short' }).format(d).slice(0, 3) }; });
+  const list = all.filter(e => gFilter === 'all' || e.dir === gFilter).sort((a, b) => b.at - a.at);
+  const people = new Set(all.filter(e => !e.sample).map(e => e.withId || e.who)).size;
+  const third = ours ? [st, 'gün seri'] : [people, 'kişi'];
+  const streakText = ours ? (st ? `${st} gündür birbirinize çiçek gönderiyorsunuz` : `Bugün ${esc(toName(p.name))} bir buket gönder, seriniz başlasın`)
+    : (st ? `${st} gündür çiçek gönderiyorsun` : 'Bugün birine buket gönder, seri başlasın');
+  $pane.innerHTML = `${ours && !all.length ? `<div class="invite-card"><strong>${esc(p.name)} ile ortak bahçeniz hazır</strong><p>Birbirinize gönderdiğiniz ilk buket burada açacak.</p><button class="cta" data-act="buildFor" id="buildFor">${esc(toName(p.name))} buket yap</button></div>` : ''}
+    <div class="gsum"><div><b>${all.length}</b><span>buket</span></div><div><b>${stems}</b><span>dal çiçek</span></div><div><b>${third[0]}</b><span>${third[1]}</span></div></div>
+    <div class="week" aria-label="Son 7 gün">${week.map(w => `<i class="${w.on ? 'on' : ''}">${w.l}</i>`).join('')}<span>${streakText}</span></div>
     <div class="hist">${list.length ? list.map(e => `<button class="entry" data-act="entry" data-val="${e.id}" id="en-${e.id}">${thumbHTML(e)}
       <div style="min-width:0"><div class="top">${esc(e.dir === 'in' ? fromName(e.who) : toName(e.who))}<span class="tag ${e.dir === 'in' ? 'in' : ''}">${e.dir === 'in' ? 'Gelen' : 'Giden'}</span>${e.sample ? '<span class="tag sample">Örnek</span>' : ''}${e.remoteId && e.dir === 'out' ? (e.deliverAt && !e.delivered ? '<span class="tag reason">Planlandı</span>' : `<span class="tag">${e.openedAt ? 'Açıldı' : 'Açılmadı'}</span>`) : ''}${e.reaction ? `<span class="tag in">${e.dir === 'out' ? 'Cevap verdi' : 'Cevapladın'}</span>` : ''}<span class="when">${whenText(e.at)}</span></div>
-      <div class="msg ${e.note ? '' : 'empty-msg'}">${e.note ? esc(e.note) : esc(e.reason)}</div></div></button>`).join('') : '<p class="small">Bu listede henüz buket yok.</p>'}</div>`;
+      <div class="msg ${e.note ? '' : 'empty-msg'}">${e.note ? esc(e.note) : esc(e.reason)}</div></div></button>`).join('') : `<p class="small">${all.length ? 'Bu listede henüz buket yok.' : ours ? '' : 'Henüz buket yok. İlk buketini yap, bahçen büyümeye başlasın.'}</p>`}</div>`;
 }
 function openEntry(id) {
   const e = W.history.find(x => x.id === id); if (!e) return;
@@ -2737,7 +2895,7 @@ async function loadHistory() {
     const { bouquets } = await api('/bouquets');
     const mine = W.mine || {};
     const list = bouquets.map(b => ({ id: b.id, remoteId: b.id, dir: b.dir, who: b.who, reason: b.reason || 'Buket', note: b.note || '', at: b.at,
-      items: compact(b.items.filter(i => ALL[i.type])), snap: b.hasImage ? `/api/bouquets/${b.id}/image.jpg` : null, link: b.link, openedAt: b.openedAt, toPartner: b.toPartner, mine: mine[b.id] || '',
+      items: compact(b.items.filter(i => ALL[i.type])), snap: b.hasImage ? `/api/bouquets/${b.id}/image.jpg` : null, link: b.link, openedAt: b.openedAt, toPartner: b.toPartner, withId: b.withId, mine: mine[b.id] || '',
       deliverAt: b.deliverAt, delivered: b.delivered, reaction: b.reaction }));
     W.history = list.length ? list.reverse() : samples();
     save();
@@ -2803,11 +2961,11 @@ function installHTML() {
   return '<p class="small">Tarayıcı menüsünden “Ana ekrana ekle” ya da “Uygulamayı yükle” seçeneğini kullan.</p>';
 }
 function inviteBlock(inv) {
-  const msg = `Demet’te eşim ol, birbirimize çiçek gönderelim: ${inv.url}`;
+  const msg = inv.kind === 'friend' ? `Demet’te arkadaşım ol, birbirimize çiçek gönderelim: ${inv.url}` : `Demet’te ortak bahçemizi kuralım, birbirimize çiçek gönderelim: ${inv.url}`;
   return `<div class="code" aria-label="Davet kodu">${inv.code}</div>
     <div class="linkrow"><input id="invLink" readonly value="${esc(inv.url)}" aria-label="Davet linki"><button class="btn2" id="copyInv">Kopyala</button></div>
     <div class="acts"><a class="cta wa" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">WhatsApp’ta gönder</a></div>
-    <p class="small">Eşin linki açınca ya da bu kodu girince eşleşirsiniz. Kod 7 gün geçerli.</p>`;
+    <p class="small">${inv.kind === 'friend' ? 'Linki birden fazla arkadaşına gönderebilirsin. Açan ya da kodu giren herkes arkadaşın olur. 7 gün geçerli.' : 'Sevgilin linki açınca ya da bu kodu girince ortak bahçeniz açılır. Kod 7 gün geçerli.'}</p>`;
 }
 const DAY_REASON = { partner_birthday: 'Doğum günü', anniversary: 'Yıldönümü', custom: 'Sadece seni düşündüm' };
 function nextOcc(x) {
@@ -2819,7 +2977,7 @@ function nextOcc(x) {
 }
 function dayLabel(x) {
   const p = ME && ME.partner;
-  if (x.type === 'partner_birthday') return `${p ? genitive(p.name) : 'Eşinin'} doğum günü`;
+  if (x.type === 'partner_birthday') return `${p ? genitive(p.name) : 'Sevgilinin'} doğum günü`;
   if (x.type === 'anniversary') { const n = x.year ? nextOcc(x).date.getFullYear() - x.year : 0; return n > 0 ? `${n}. yıldönümünüz` : 'Yıldönümünüz'; }
   return x.label;
 }
@@ -2835,7 +2993,7 @@ function daysHTML() {
       <span class="left">${days === 0 ? 'Bugün' : days === 1 ? 'Yarın' : `${days} gün`}</span><button data-delday="${x.id}" aria-label="${esc(dayLabel(x))} sil">×</button></div>`).join('')
     : '<p class="small">Doğum gününü ve yıldönümünüzü ekle. Üç gün önce, bir gün önce ve günü gelince haber verelim.</p>'}</div>
     <form class="dayform" id="dayForm" novalidate>
-      <select id="dayType" aria-label="Gün türü"><option value="partner_birthday">${ME && ME.partner ? esc(genitive(ME.partner.name)) : 'Eşimin'} doğum günü</option><option value="anniversary">Yıldönümümüz</option><option value="custom">Başka bir gün</option></select>
+      <select id="dayType" aria-label="Gün türü"><option value="partner_birthday">${ME && ME.partner ? esc(genitive(ME.partner.name)) : 'Sevgilimin'} doğum günü</option><option value="anniversary">Yıldönümümüz</option><option value="custom">Başka bir gün</option></select>
       <input id="dayDate" type="date" aria-label="Tarih" required>
       <input id="dayLabel" class="wide" maxlength="40" placeholder="Günün adı, örneğin İlk buluşma…" autocomplete="off" hidden>
       <button class="btn2 wide" type="submit">Özel gün ekle</button>
@@ -2858,17 +3016,22 @@ function bindDays(sh) {
   bind();
 }
 async function openAccount() {
-  if (!online()) { openSheet(`<h3 id="sheetTitle">Hesabım</h3><p class="sub">Hesap, eşleşme ve bildirimler sunucuyla çalışır. Projeyi npm start ile çalıştırınca açılır.</p>`); return; }
+  if (!online()) { openSheet(`<h3 id="sheetTitle">Hesabım</h3><p class="sub">Hesap, arkadaşlar ve bildirimler sunucuyla çalışır. Projeyi npm start ile çalıştırınca açılır.</p>`); return; }
   const ps = await pushState(), p = ME.partner;
   const since = p && p.since ? new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }).format(p.since) : '';
   openSheet(`<h3 id="sheetTitle">Hesabım</h3>
     <div class="field"><label for="accName">Adın</label><div class="linkrow"><input id="accName" value="${esc(ME.name === 'Misafir' ? '' : ME.name)}" maxlength="24" autocomplete="given-name" placeholder="Örneğin Furkan…"><button class="btn2" id="saveName">Kaydet</button></div></div>
-    <section class="acc"><h4>Eşin</h4>
-      ${p ? `<div class="pair"><div class="av" aria-hidden="true">${esc(p.name.charAt(0).toLocaleUpperCase('tr'))}</div><div><b>${esc(p.name)}</b><small>${since} tarihinden beri eşleşmişsiniz. Buketlerin doğrudan ona gider.</small></div></div>
-          <button class="linkbtn" id="unpair">Eşleşmeyi kaldır</button>`
-        : `<p class="small">Eşini ekle, buketlerin doğrudan onun bahçesine düşsün ve bildirim gitsin.</p>
-          <div id="inviteBox"><button class="cta" id="mkInvite" style="justify-self:start">Davet linki oluştur</button></div>
-          <div class="field"><label for="codeIn">Davet kodun var mı?</label><div class="linkrow"><input id="codeIn" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Örneğin K7Q2MX…" style="text-transform:uppercase;letter-spacing:.12em"><button class="btn2" id="useCode">Eşleş</button></div></div>`}
+    <section class="acc"><h4>Sevgilin</h4>
+      ${p ? `<div class="pair"><div class="av heart" aria-hidden="true">${esc(p.name.charAt(0).toLocaleUpperCase('tr'))}</div><div><b>${esc(p.name)}</b><small>Ortak bahçeniz ${since} tarihinde açıldı. Birbirinize gönderdikleriniz Bahçemiz’de büyüyor.</small></div></div>
+          <button class="linkbtn" id="unpair">Sevgilini kaldır</button>`
+        : `<p class="small">Sevgilini ya da eşini ekle. Birbirinize gönderdiğiniz buketler ortak bahçenizde, Bahçemiz’de büyüsün.</p>
+          <div id="inviteBox"><button class="cta" id="mkInvite" style="justify-self:start">Sevgilini davet et</button></div>`}
+    </section>
+    <section class="acc"><h4>Arkadaşların${(ME.friends || []).length ? ` <span class="small" style="color:var(--ink-2);font-weight:600">${ME.friends.length}</span>` : ''}</h4>
+      ${(ME.friends || []).length ? `<div>${ME.friends.map(f => `<div class="frow"><div class="av" aria-hidden="true">${esc(f.name.charAt(0).toLocaleUpperCase('tr'))}</div><div><b>${esc(f.name)}</b><small>${f.since ? new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' }).format(f.since) + ' tarihinden beri' : 'Arkadaşın'}</small></div><button class="rm" data-unfriend="${f.id}" aria-label="${esc(f.name)} arkadaşlardan çıkar">×</button></div>`).join('')}</div>`
+        : '<p class="small">Annene, kardeşine, en yakın arkadaşına doğrudan buket gönder. Onlardan gelenler senin bahçende durur.</p>'}
+      <div id="friendBox"><button class="btn2" id="mkFriend" style="justify-self:start">Arkadaş davet et</button></div>
+      <div class="field"><label for="codeIn">Davet kodun var mı?</label><div class="linkrow"><input id="codeIn" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Örneğin K7Q2MX…" style="text-transform:uppercase;letter-spacing:.12em"><button class="btn2" id="useCode">Ekle</button></div></div>
     </section>
     <section class="acc"><h4>Özel günler</h4><div id="daysBox">${daysHTML()}</div></section>
     <section class="acc"><h4>Bildirimler</h4>${pushHTML(ps)}</section>
@@ -2884,30 +3047,40 @@ async function openAccount() {
       const v = q('#accName').value.trim(); if (!v) { toast('Adını yaz'); return; }
       try { applyMe(await api('/me', { method: 'PATCH', body: { name: v } })); toast('Adın kaydedildi'); } catch (e) { toast(e.message); }
     };
-    const mk = q('#mkInvite');
-    if (mk) mk.onclick = async () => {
-      mk.disabled = true;
-      try {
-        const inv = await api('/invite', { body: {} });
-        q('#inviteBox').innerHTML = inviteBlock(inv);
-        const li = q('#invLink'); li.onfocus = () => li.select();
-        q('#copyInv').onclick = () => copyText(inv.url, li);
-      } catch (e) { mk.disabled = false; toast(e.message); }
+    const invite = (btnId, boxId, kind) => {
+      const mk = q(btnId); if (!mk) return;
+      mk.onclick = async () => {
+        mk.disabled = true;
+        try {
+          const inv = await api('/invite', { body: { kind } });
+          q(boxId).innerHTML = inviteBlock(inv);
+          const li = q(boxId).querySelector('#invLink'); li.onfocus = () => li.select();
+          q(boxId).querySelector('#copyInv').onclick = () => copyText(inv.url, li);
+        } catch (e) { mk.disabled = false; toast(e.message); }
+      };
     };
+    invite('#mkInvite', '#inviteBox', 'partner'); invite('#mkFriend', '#friendBox', 'friend');
     const uc = q('#useCode');
     if (uc) uc.onclick = async () => {
       const code = q('#codeIn').value.trim().toUpperCase();
       if (!/^[A-Z0-9]{6}$/.test(code)) { toast('Kod 6 karakter olmalı'); return; }
       uc.disabled = true;
-      try { applyMe(await api(`/invite/${code}/accept`, { body: {} })); closeSheet(); toast(`${ME.partner.name} ile eşleştiniz`); loadHistory(); }
-      catch (e) { uc.disabled = false; toast(e.message); }
+      try {
+        const r = await api(`/invite/${code}/accept`, { body: {} }); applyMe(r); closeSheet();
+        toast(r.kind === 'friend' ? 'Arkadaş eklendi' : `${ME.partner.name} ile ortak bahçeniz açıldı`); loadHistory();
+      } catch (e) { uc.disabled = false; toast(e.message); }
     };
+    sh.querySelectorAll('[data-unfriend]').forEach(b => b.onclick = async () => {
+      const f = ME.friends.find(x => x.id === b.dataset.unfriend);
+      if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Çıkar'; b.style.width = 'auto'; b.style.padding = '0 10px'; b.style.borderRadius = '999px'; b.style.color = 'var(--accent)'; setTimeout(() => { if (document.contains(b)) { b.dataset.sure = ''; b.textContent = '×'; b.removeAttribute('style'); } }, 3000); return; }
+      try { applyMe(await api('/friends/' + b.dataset.unfriend, { method: 'DELETE' })); b.closest('.frow').remove(); toast(`${f ? f.name : 'Arkadaş'} arkadaşlarından çıkarıldı`); } catch (e) { toast(e.message); }
+    });
     const up = q('#unpair');
     if (up) up.onclick = () => {
       closeSheet();
-      setTimeout(() => openSheet(`<h3 id="sheetTitle">Eşleşmeyi kaldır</h3><p class="sub">${esc(p.name)} ile eşleşmeniz kalkar. Eski buketleriniz bahçede kalır.</p>
+      setTimeout(() => openSheet(`<h3 id="sheetTitle">Sevgilini kaldır</h3><p class="sub">${esc(p.name)} ile ortak bahçeniz ikiniz için de kapanır. Buketler silinmez; herkesin gönderdiği ve aldığı buketler kendi bahçesinde kalır.</p>
         <div class="acts"><button class="btn2" data-close>Vazgeç</button><button class="cta" id="doUnpair" data-autofocus>Kaldır</button></div>`, s2 => {
-          s2.querySelector('#doUnpair').onclick = async () => { try { applyMe(await api('/unpair', { body: {} })); closeSheet(); toast('Eşleşme kaldırıldı'); } catch (e) { toast(e.message); } };
+          s2.querySelector('#doUnpair').onclick = async () => { try { applyMe(await api('/unpair', { body: {} })); closeSheet(); toast('Ortak bahçe kapandı'); if (view === 'garden') { gMode = 'mine'; setGardenMode('mine'); } } catch (e) { toast(e.message); } };
         }), 300);
     };
     const op = q('#onPush'); if (op) op.onclick = async () => { if (await enablePush()) { closeSheet(); toast('Bildirimler açıldı'); } };
@@ -2924,7 +3097,7 @@ const BACK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 function authHTML(mode, p) {
   const reg = mode === 'register';
   return `<form class="formgrid auth" id="${p}Form" novalidate>
-    ${reg ? `<div class="field"><label for="${p}Name">Adın</label><input id="${p}Name" maxlength="24" autocomplete="given-name" placeholder="Eşin seni bu adla görecek…" value="${esc(ME && ME.name !== 'Misafir' ? ME.name : '')}"></div>` : ''}
+    ${reg ? `<div class="field"><label for="${p}Name">Adın</label><input id="${p}Name" maxlength="24" autocomplete="given-name" placeholder="Sevdiklerin seni bu adla görecek…" value="${esc(ME && ME.name !== 'Misafir' ? ME.name : '')}"></div>` : ''}
     <div class="field"><label for="${p}Email">E-posta</label><input id="${p}Email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="ornek@mail.com…"></div>
     <div class="field"><label for="${p}Pass">Şifre</label><div class="passrow"><input id="${p}Pass" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="${reg ? 'En az 8 karakter…' : 'Şifren…'}"><button type="button" class="peek" aria-pressed="false">Göster</button></div></div>
     <p class="err" role="alert" hidden></p>
@@ -2940,7 +3113,7 @@ function bindAuth(root, mode, p, done) {
     ev.preventDefault(); er.hidden = true;
     const email = f.querySelector(`#${p}Email`).value.trim(), password = pw.value;
     const name = mode === 'register' ? f.querySelector(`#${p}Name`).value.trim() : '';
-    if (mode === 'register' && !name) return fail('Adını yaz, eşin seni tanısın.', `#${p}Name`);
+    if (mode === 'register' && !name) return fail('Adını yaz, sevdiklerin seni tanısın.', `#${p}Name`);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Geçerli bir e-posta adresi yaz.', `#${p}Email`);
     if (mode === 'register' && password.length < 8) return fail('Şifre en az 8 karakter olmalı.', `#${p}Pass`);
     if (!password) return fail('Şifreni yaz.', `#${p}Pass`);
@@ -2975,7 +3148,7 @@ function openAuth(mode = 'register') {
       wrap.innerHTML = `<h3 id="sheetTitle">${AUTH_COPY[m][0]}</h3><p class="sub">${AUTH_COPY[m][1]}</p>
         <div class="seg" role="tablist" aria-label="Hesap"><button type="button" role="tab" aria-selected="${m === 'register'}" data-m="register">Kayıt ol</button><button type="button" role="tab" aria-selected="${m === 'login'}" data-m="login">Giriş yap</button></div>
         ${authHTML(m, 's')}
-        ${isGuest() ? '<button class="linkbtn" id="toAcc">Hesap ayarları: eşleşme, özel günler, bildirimler</button>' : ''}`;
+        ${isGuest() ? '<button class="linkbtn" id="toAcc">Hesap ayarları: sevgilin, arkadaşların, özel günler, bildirimler</button>' : ''}`;
       wrap.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { draw(b.dataset.m); wrap.querySelector(`[data-m="${b.dataset.m}"]`).focus(); });
       bindAuth(wrap, m, 's', afterAuth);
       const ta = wrap.querySelector('#toAcc'); if (ta) ta.onclick = () => { closeSheet(); setTimeout(openAccount, 300); };
@@ -2998,8 +3171,8 @@ function showWelcome() {
     step.innerHTML = `<h2 id="wTitle">Sevdiğine çiçek gönder, bahçeniz birlikte büyüsün</h2>
       <ul class="wperks">
         <li>${PERK}<span>3D buketini çiçek çiçek kendin yap, kağıdına sar, notunu yaz.</span></li>
-        <li>${PERK}<span>Eşine gönder; bildirim gitsin, buket onun ekranında açılsın.</span></li>
-        <li>${PERK}<span>Gönderdiğiniz her buket bu bahçeye ekilir.</span></li>
+        <li>${PERK}<span>Sevgiline, arkadaşına gönder; bildirim gitsin, buket onun ekranında açılsın.</span></li>
+        <li>${PERK}<span>Her buket bahçene ekilir; sevgilinle olanlar ortak bahçenizde büyür.</span></li>
       </ul>
       <div class="wbtns"><button class="cta wide" id="wReg" type="button">Hesap oluştur</button><button class="btn2 wide" id="wLog" type="button">Hesabım var, giriş yap</button></div>
       <button class="linkbtn wguest" id="wGuest" type="button">Misafir olarak giriş yap</button>`;
@@ -3027,28 +3200,32 @@ function hideWelcome() {
   const el = $('welcome'); el.classList.remove('show');
   $('app').classList.remove('welcoming'); welcomeFrame();
   setTimeout(() => { el.hidden = true; el.innerHTML = ''; }, 500);
-  setView(location.hash === '#bahce' ? 'garden' : 'studio');
+  setView(hashView());
 }
 async function openPairLanding(code) {
   history.replaceState(null, '', '/');
   let info;
   try { info = await api(`/invite/${code}`); }
-  catch (e) { openSheet(`<h3 id="sheetTitle">Davet geçersiz</h3><p class="sub">${esc(e.message)} Eşinden yeni bir davet linki iste.</p>`); return; }
-  if (ME.partner) { openSheet(`<h3 id="sheetTitle">Zaten eşleşmişsin</h3><p class="sub">${esc(ME.partner.name)} ile eşleşmişsin. Yeni biriyle eşleşmek için önce Hesabım’dan eşleşmeyi kaldır.</p>`); return; }
-  openSheet(`<div class="unl"><div class="av" style="width:72px;height:72px;font-size:30px" aria-hidden="true">${esc(info.fromName.charAt(0).toLocaleUpperCase('tr'))}</div>
-      <div><h3 id="sheetTitle">${esc(info.fromName)} seni eşi olarak ekledi</h3><p class="sub" style="margin-top:4px">Eşleşince birbirinize gönderdiğiniz buketler doğrudan bahçenize düşer.</p></div></div>
+  catch (e) { openSheet(`<h3 id="sheetTitle">Davet geçersiz</h3><p class="sub">${esc(e.message)} Davet eden kişiden yeni bir link iste.</p>`); return; }
+  const friend = info.kind === 'friend', fn = info.fromName;
+  if (info.already) { openSheet(`<h3 id="sheetTitle">${friend ? `${esc(fn)} zaten arkadaşın` : `${esc(fn)} ile ortak bahçeniz zaten açık`}</h3><p class="sub">Ona doğrudan buket gönderebilirsin.</p>`); return; }
+  if (!friend && ME.partner) { openSheet(`<h3 id="sheetTitle">Zaten bir sevgilin ekli</h3><p class="sub">${esc(ME.partner.name)} ile ortak bahçen var. ${esc(fn)} ile ortak bahçe kurmak için önce Hesabım’dan sevgilini kaldır.</p>`); return; }
+  if (!friend && info.taken) { openSheet(`<h3 id="sheetTitle">Bu davet artık geçerli değil</h3><p class="sub">${esc(fn)} başka biriyle ortak bahçe kurmuş.</p>`); return; }
+  openSheet(`<div class="unl"><div class="av ${friend ? '' : 'heart'}" style="width:72px;height:72px;font-size:30px" aria-hidden="true">${esc(fn.charAt(0).toLocaleUpperCase('tr'))}</div>
+      <div><h3 id="sheetTitle">${esc(fn)} seni ${friend ? 'arkadaş' : 'sevgilisi'} olarak ekledi</h3><p class="sub" style="margin-top:4px">${friend ? 'Birbirinize doğrudan buket gönderebilirsiniz. Gelen buketler kendi bahçende durur.' : 'Kabul edince ortak bahçeniz açılır. Birbirinize gönderdiğiniz buketler Bahçemiz’de büyür.'}</p></div></div>
     <div class="field"><label for="pairName">Adın</label><input id="pairName" value="${esc(ME.name === 'Misafir' ? '' : ME.name)}" maxlength="24" autocomplete="given-name" placeholder="Örneğin Elif…"></div>
     <p class="err" id="pairErr" role="alert" hidden></p>
-    <div class="acts"><button class="btn2" data-close>Şimdi değil</button><button class="cta" id="doPair" data-autofocus>Eşleş</button></div>`, sh => {
+    <div class="acts"><button class="btn2" data-close>Şimdi değil</button><button class="cta" id="doPair" data-autofocus>${friend ? 'Arkadaş ol' : 'Kabul et'}</button></div>`, sh => {
     sh.querySelector('#doPair').onclick = async () => {
       const er = sh.querySelector('#pairErr'), nm = sh.querySelector('#pairName').value.trim();
-      if (!nm) { er.textContent = 'Eşinin seni tanıması için adını yaz.'; er.hidden = false; return; }
+      if (!nm) { er.textContent = `${fn} seni tanısın diye adını yaz.`; er.hidden = false; return; }
       try {
         if (nm !== ME.name) applyMe(await api('/me', { method: 'PATCH', body: { name: nm } }));
         applyMe(await api(`/invite/${code}/accept`, { body: {} }));
-        closeSheet(); toast(`${info.fromName} ile eşleştiniz`); loadHistory();
+        closeSheet(); toast(friend ? `${fn} ile artık arkadaşsınız` : `${fn} ile ortak bahçeniz açıldı`); loadHistory();
+        if (!friend) { gMode = 'ours'; W.gMode = 'ours'; save(); }
         if (isGuest()) { setTimeout(() => openAuth('register'), 700); return; }
-        if (await pushState() === 'off') setTimeout(() => openSheet(`<h3 id="sheetTitle">Buket gelince haber verelim mi?</h3><p class="sub">${esc(info.fromName)} sana buket gönderince bildirim gelsin.</p>
+        if (await pushState() === 'off') setTimeout(() => openSheet(`<h3 id="sheetTitle">Buket gelince haber verelim mi?</h3><p class="sub">${esc(fn)} sana buket gönderince bildirim gelsin.</p>
           <div class="acts"><button class="btn2" data-close>Şimdi değil</button><button class="cta" id="okPush" data-autofocus>Bildirimleri aç</button></div>`, s3 => {
             s3.querySelector('#okPush').onclick = async () => { if (await enablePush()) { closeSheet(); toast('Bildirimler açıldı'); } };
           }), 600);
@@ -3059,8 +3236,22 @@ async function openPairLanding(code) {
 $('meBtn').addEventListener('click', () => (isGuest() ? openAuth('register') : openAccount()));
 
 /* ---- views */
+function hashView() { return location.hash === '#bahce' || location.hash === '#bahcemiz' ? 'garden' : 'studio'; }
+function preferredGarden() { return online() && ME.partner && W.gMode !== 'mine' ? 'bahcemiz' : 'bahce'; }
+function setGardenMode(m) {
+  W.gMode = m; save();
+  const hsh = m === 'ours' ? '#bahcemiz' : '#bahce';
+  if (location.hash !== hsh) location.hash = hsh; else setView('garden');
+}
+document.getElementById('gswitch').addEventListener('click', e => { const b = e.target.closest('[data-gmode]'); if (b && b.dataset.gmode !== gMode) setGardenMode(b.dataset.gmode); });
+function renderSwitch() {
+  const el = $('gswitch'); el.hidden = view !== 'garden' || !!viewing || !online();
+  el.querySelectorAll('[data-gmode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.gmode === gMode)));
+}
 async function setView(v, opt = {}) {
   view = v;
+  if (v === 'garden') { const m = location.hash === '#bahcemiz' ? 'ours' : 'mine'; if (m !== gMode) { gMode = m; gFocus = null; } }
+  renderSwitch();
   const g = v === 'garden';
   stage.classList.toggle('garden', g); $('app').classList.toggle('in-garden', g); gardenDpr();
   controls.enabled = !g; gControls.enabled = g;
@@ -3081,7 +3272,7 @@ async function setView(v, opt = {}) {
     buildGarden(); placeGardenCam();
   }
 }
-window.addEventListener('hashchange', () => { if (!viewing) setView(location.hash === '#bahce' ? 'garden' : 'studio'); });
+window.addEventListener('hashchange', () => { if (!viewing) setView(hashView()); });
 
 /* ---- boot */
 resize(); placeCamera(); renderTop(); renderTabs(); renderPane(); renderFoot();
@@ -3122,7 +3313,7 @@ const serverCheck = fetch('/api/health', { cache: 'no-store' }).then(r => r.ok &
     if (online()) loadHistory();
     if (PAIR_CODE && online()) openPairLanding(PAIR_CODE);
     else if (isGuest() && !welcomed && !q.has('odeme')) showWelcome();
-    else if (location.hash === '#bahce') setView('garden');
+    else if (hashView() === 'garden') setView('garden');
   }
 })();
 </script>

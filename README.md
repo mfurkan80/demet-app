@@ -21,11 +21,12 @@ Port doluysa: `PORT=3000 npm start`
 - **Buket stüdyosu**: 16 çiçek, 4 yeşillik, sarma animasyonu, premium kağıt/kurdele/süsler, not kartı
 - **Hesap**: ilk açılışta bahçenin önünde karşılama ekranı çıkar: Hesap oluştur, Giriş yap ya da Misafir olarak giriş yap. Misafir olarak giren kişi arka planda misafir hesabıyla çalışır, üst bardaki "Giriş yap" ile istediği an kayıt olur. Var olan hesaba giriş yapınca o cihazda misafirken gönderilen buketler hesaba taşınır (hoş geldin altınıyla açılan parçalar taşınmaz).
 - **Eşleşme**: Hesabım > Davet linki oluştur. Eşin linki açınca ya da 6 haneli kodu girince eşleşirsiniz
-- **Gönderme**: eşine doğrudan (bahçesine düşer + bildirim) ya da link ile (WhatsApp'tan herkese)
+- **Sevgili ve arkadaşlar**: herkes bir sevgili (ortak bahçe) ve istediği kadar arkadaş ekleyebilir. Davet linki ya da 6 haneli kodla; sevgili daveti tek kullanımlık, arkadaş daveti 7 gün boyunca birden fazla kişiyle paylaşılabilir. Sevgili kaldırılınca ortak bahçe ikisi için de kapanır, buketler herkesin kendi bahçesinde kalır.
+- **Gönderme**: gönderirken kişi seçilir: sevgilin, bir arkadaşın (doğrudan gider, bildirim düşer) ya da link ile herkese (WhatsApp'tan)
 - **Alıcı ekranı**: `/b/<id>` linkini açan kişi hiçbir şey indirmeden zarfı açar, buket gözünün önünde sarılır
 - **Bildirimler**: buket gelince, gönderdiğin buket açılınca, eşleşince (Web Push)
 - **Telefona yükleme**: manifest + service worker, modeller önbelleğe alınır
-- **Bahçe**: Blender'da modellenen kiraz ağaçları, gül kemeri, iki kişilik bank, fenerler ve çalılarla bir bahçe. Her buket taş yolun kenarında kendi tarhına, el yazısı tabelasıyla ekilir; açık temada gün batımı, koyu temada fenerler ve ateş böcekleri. Tarha dokununca kamera oraya gider ve not açılır. Altta gelen/giden listesi, açıldı bilgisi, gönderme serisi, kendine özel notlar
+- **İki bahçe**: *Bahçem* gönderdiğin ve sana gelen bütün buketleri, *Bahçemiz* sadece sevgilinle birbirinize gönderdiklerinizi gösterir (ikiniz de aynı bahçeyi görürsünüz). Bahçemiz'de iki kişilik bank, kemerde iki ismin yazdığı tabela ve ağaçlardan kemere ışık zinciri var; Bahçem'de tek sandalye ve kişinin adı. Blender'da modellenen kiraz ağaçları, gül kemeri, fenerler ve çalılar; her buket taş yolun kenarında kendi tarhına, el yazısı tabelasıyla ekilir. Açık temada gün batımı, koyu temada fenerler ve ateş böcekleri. Seri Bahçem'de senin gönderdiğin günleri, Bahçemiz'de ikinizin birbirine gönderdiği günleri sayar.
 - **Altın**: bakiye, kilitler ve günlük hediye sunucuda tutulur; fiyatlar sunucuda doğrulanır
 - **Ödeme**: iyzico Ödeme Formu; anahtar yoksa deneme modu
 - **Özel günler**: doğum günü, yıldönümü ve başka günler; 3 gün önce, 1 gün önce ve günü gelince bildirim, uygulamada "Hazırla" bandı
@@ -105,6 +106,8 @@ Giriş denemeleri 15 dakikada 8 ile sınırlı; oturum 12 saat geçerli ve sunuc
 | `POST /api/bouquets/:id/react` | alıcının cevabı (`heart`, `thanks`, `love`, `wow`, `note`) |
 | `POST /api/days`, `DELETE /api/days/:id` | özel günler |
 | `POST /api/push`, `DELETE /api/push`, `POST /api/push/test` | bildirim aboneliği |
+| `POST /api/invite` `{kind: 'partner'|'friend'}` | davet linki ve kodu |
+| `DELETE /api/friends/:id` | arkadaşlıktan çıkar |
 
 Kimlik doğrulama `Authorization: Bearer <token>` ile. Token tarayıcının localStorage'ında `demet-token` anahtarında durur.
 
