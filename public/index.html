@@ -368,6 +368,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .pack .amt { font-family: var(--font-display); font-weight: 800; font-size: 22px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
 .pack .bonus { font-size: 12.5px; color: var(--gold); font-weight: 700; min-height: 17px; }
 .pack .price { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.pack.busy { opacity: .6; }
 .pack .flag { position: absolute; top: -9px; right: 10px; background: var(--gold); color: var(--surface); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
 .small { font-size: 12.5px; color: var(--ink-2); margin: 0; }
 .uses { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; }
@@ -635,6 +636,22 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+/* ======================================================================= platform
+   On the web everything is same-origin. Inside the iOS/Android app (Capacitor) the page is bundled
+   in the app and window.DEMET.api points at the live server; window.DemetNative is the native bridge. */
+const CFG = window.DEMET || {};
+const API = (CFG.api || '').replace(/\/+$/, '');
+const WEB = (CFG.web || API || location.origin).replace(/\/+$/, '');
+const NATIVE = window.DemetNative && window.DemetNative.isNative ? window.DemetNative : null;
+const apiUrl = p => API + p;
+function haptic(kind) { if (NATIVE) NATIVE.haptic(kind); else { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} } }
+function openExternal(url) { if (NATIVE) NATIVE.openUrl(url); else window.open(url, '_blank', 'noopener'); }
+if (NATIVE) document.addEventListener('click', e => {
+  const a = e.target.closest('a[href]'); if (!a) return;
+  const href = a.getAttribute('href');
+  if (/^(https?:|mailto:)/.test(href) && !href.startsWith(location.origin)) { e.preventDefault(); NATIVE.openUrl(href); }
+}, true);
 
 /* ======================================================================= catalog */
 const TIE = 0.24;
@@ -2240,7 +2257,8 @@ $pane.addEventListener('click', e => {
     if (b.dataset.act === 'react') return sendReaction(b.dataset.val);
     if (b.dataset.act === 'reactNote') return sendReaction('note');
     if (b.dataset.act === 'story') return recordStory();
-    if (b.dataset.act === 'recvShare') shareLink(location.href.split('#')[0], `${fromName(viewing.data.sign || 'Biri')} gelen buket`);
+    if (b.dataset.act === 'recvShare') shareLink(`${WEB}/b/${viewing.id}`, `${fromName(viewing.data.sign || 'Biri')} gelen buket`);
+    if (b.dataset.act === 'report') return openReport(viewing.id);
     if (b.dataset.act === 'recvGarden') location.href = '/#' + preferredGarden();
     return;
   }
@@ -2253,7 +2271,7 @@ $pane.addEventListener('click', e => {
       if (isMain(val)) S.active = val; else S.fillActive = val;
       S.items.push({ id: S.nextId++, type: val, color: S.pick[val] });
       hideHint();
-      try { navigator.vibrate && navigator.vibrate(8); } catch (err) {}
+      haptic('light');
       break;
     case 'minus': for (let i = S.items.length - 1; i >= 0; i--) if (S.items[i].type === val) { S.items.splice(i, 1); break; } break;
     case 'color': { const t = tab === 'flowers' ? S.active : S.fillActive; S.pick[t] = val; sync = false; break; }
@@ -2357,6 +2375,7 @@ function openShop() {
   const filled = streakNow % 7 === 0 && claimed ? 7 : streakNow % 7;
   const nextReward = ((streakNow % 7) + 1) === 7 ? 50 : 10;
   const packs = (online() && PACKS_SRV) || PACKS;
+  if (NATIVE) return openStoreShop();
   const realPay = online() && PAYMENTS === 'iyzico', payOff = online() && PAYMENTS === 'off';
   openSheet(`<h3 id="sheetTitle">Altın</h3>
     <div class="bal">${coin('lg')}<span id="shopBal">${fmt(W.gold)}</span><small>bakiyen</small></div>
@@ -2402,7 +2421,65 @@ function openShop() {
     });
   });
 }
+// Inside the app gold is sold through App Store / Google Play (RevenueCat). After a purchase the server checks
+// RevenueCat and loads the gold; the webhook does the same in the background if the app is closed mid-way.
+let IAP_READY = null, IAP_ON = false;
+function iapReady() {
+  if (!NATIVE || !online() || !IAP_ON) return Promise.resolve(false);
+  if (!IAP_READY) IAP_READY = NATIVE.iap.configure(ME.id).catch(() => false);
+  return IAP_READY;
+}
+async function openStoreShop() {
+  const today = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10), yest = new Date(Date.now() - 21 * 3600000).toISOString().slice(0, 10);
+  const claimed = W.daily.last === today, streakNow = claimed ? W.daily.streak : (W.daily.last === yest ? W.daily.streak : 0);
+  const filled = streakNow % 7 === 0 && claimed ? 7 : streakNow % 7, nextReward = ((streakNow % 7) + 1) === 7 ? 50 : 10;
+  openSheet(`<h3 id="sheetTitle">Altın</h3>
+    <div class="bal">${coin('lg')}<span id="shopBal">${fmt(W.gold)}</span><small>bakiyen</small></div>
+    <div class="daily"><div class="h"><div><strong>Günlük hediye</strong><span>${claimed ? 'Bugünkü hediyeni aldın. Yarın tekrar gel.' : `Bugün ${nextReward} altın seni bekliyor.`}</span></div>
+      ${claimed ? '' : `<button class="cta" id="claim" data-autofocus style="height:40px">Al</button>`}</div>
+      <div class="days" aria-label="7 günlük seri">${Array.from({ length: 7 }, (_, i) => `<i class="${i < filled ? 'done' : ''} ${i === 6 ? 'big' : ''}">${i === 6 ? '+50' : '+10'}</i>`).join('')}</div></div>
+    <div id="storePacks"><p class="small">Paketler yükleniyor…</p></div>
+    <ul class="uses"><li>Premium çiçekler dal başına altınla gönderilir</li><li>Kadife, altın kenarlı kağıtlar ve özel süslerin kilidi bir kez açılır</li><li>Temel çiçekler ve mat kağıt her zaman ücretsiz</li></ul>
+    <p class="err" id="buyErr" role="alert" hidden></p>`, async sh => {
+    const c = sh.querySelector('#claim');
+    if (c) c.onclick = async () => { c.disabled = true; try { const r = await api('/daily', { body: {} }); applyMe(r); closeSheet(); toast(`+${r.reward} altın eklendi`); } catch (e) { c.disabled = false; toast(e.message); } };
+    const box = sh.querySelector('#storePacks'), er = sh.querySelector('#buyErr');
+    const packs = PACKS_SRV || [];
+    let products = [];
+    if (await iapReady()) { try { products = await NATIVE.iap.products(packs.map(p => p.iap).filter(Boolean)); } catch (e) { products = []; } }
+    if (!document.contains(box)) return;
+    const list = packs.map(p => ({ p, prod: products.find(x => x.id === p.iap) })).filter(x => x.prod);
+    if (!list.length) { box.innerHTML = '<div class="tip">Altın satışı yakında açılacak. Bu sürede günlük hediyeni almayı unutma.</div>'; return; }
+    box.innerHTML = `<div class="packs">${list.map(({ p, prod }) => `<button class="pack ${p.best ? 'best' : ''}" data-iap="${esc(p.iap)}">${p.best ? '<span class="flag">En çok alınan</span>' : ''}
+      <span class="amt">${coin()}${fmt(p.gold + p.bonus)}</span><span class="bonus">${p.bonus ? `${fmt(p.gold)} + ${p.bonus} hediye` : ''}</span><span class="price">${esc(prod.priceString)}</span></button>`).join('')}</div>
+      <p class="small">Ödeme ${NATIVE.platform === 'ios' ? 'Apple hesabın' : 'Google Play hesabın'} üzerinden alınır. Altın, satın alma onaylanınca hesabına yüklenir.</p>`;
+    box.querySelectorAll('[data-iap]').forEach(b => b.onclick = async () => {
+      er.hidden = true;
+      box.querySelectorAll('[data-iap]').forEach(x => { x.disabled = true; });
+      b.classList.add('busy');
+      try {
+        const r = await NATIVE.iap.buy(b.dataset.iap);
+        if (r && r.cancelled) return;
+        let added = 0;
+        for (let i = 0; i < 4 && !added; i++) {
+          const s = await api('/iap/sync', { body: {} }); applyMe(s); added = s.added || 0;
+          if (!added) await new Promise(res => setTimeout(res, 1500));
+        }
+        haptic('success'); closeSheet();
+        toast(added ? `+${fmt(added)} altın hesabına yüklendi` : 'Ödeme alındı. Altının birkaç dakika içinde hesabına yüklenecek.');
+      } catch (e) { er.textContent = e.message || 'Satın alma tamamlanamadı.'; er.hidden = false; }
+      finally { if (document.contains(box)) box.querySelectorAll('[data-iap]').forEach(x => { x.disabled = false; x.classList.remove('busy'); }); }
+    });
+  });
+}
 $('goldBtn').addEventListener('click', openShop);
+// Android back button: close the top sheet, leave the garden, or leave a received bouquet before exiting the app
+window.__demetBack = () => {
+  if ($root.querySelector('.sheet.show')) { closeSheet(); return true; }
+  if (viewing) { location.href = '/'; return true; }
+  if (view === 'garden' && !welcomeOpen) { location.hash = ''; return true; }
+  return false;
+};
 $('navBtn').addEventListener('click', () => { if (viewing) { location.href = '/#' + preferredGarden(); return; } location.hash = view === 'studio' ? preferredGarden() : ''; });
 
 /* ---- send */
@@ -2506,7 +2583,7 @@ function openSend() {
           if (sendAt && sendAt < Date.now() + 60000) throw new Error('Gönderim zamanı geçmiş. Yeniden seç.');
           const out = await api('/bouquets', { body: { bouquet, snap, ...(rcpt ? { toUserId: rcpt.id } : {}), ...(sendAt ? { sendAt } : {}) } });
           applyMe(out);
-          Object.assign(entry, { id: out.id, remoteId: out.id, link: out.url, toPartner: out.toPartner, openedAt: null, preview: snap, snap: `/api/bouquets/${out.id}/image.jpg`,
+          Object.assign(entry, { id: out.id, remoteId: out.id, link: out.url, toPartner: out.toPartner, openedAt: null, preview: snap, snap: apiUrl(`/api/bouquets/${out.id}/image.jpg`),
             deliverAt: out.deliverAt, delivered: !out.deliverAt });
         } catch (e2) {
           err.textContent = e2.message || 'Sunucuya ulaşılamadı. Bağlantını kontrol edip tekrar dene.';
@@ -2541,10 +2618,11 @@ function sentAnimation(entry) {
   if (reduceMotion) reset(); else flight = { t: 0, done: reset };
 }
 async function copyText(text, input) {
-  try { await navigator.clipboard.writeText(text); toast('Link kopyalandı'); }
+  try { if (NATIVE) await NATIVE.copy(text); else await navigator.clipboard.writeText(text); toast('Link kopyalandı'); }
   catch (e) { if (input) { input.focus(); input.select(); } toast('Linki seçip kopyala'); }
 }
 async function shareLink(url, title) {
+  if (NATIVE) { try { await NATIVE.share({ title, url }); } catch (e) {} return; }
   if (navigator.share) { try { await navigator.share({ title, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
   copyText(url);
 }
@@ -2553,7 +2631,7 @@ function linkBlock(entry) {
   const msg = `${entry.who}, sana bir buket gönderdim: ${entry.link}`;
   return `<div class="linkrow"><input id="linkIn" readonly value="${esc(entry.link)}" aria-label="Buket linki"><button class="btn2" id="copyLink">Kopyala</button></div>
     ${local ? '<div class="tip">Bu link sadece bu bilgisayarda açılır. Telefondan denemek için uygulamayı terminaldeki ağ adresinden aç. Gerçek kullanım için sunucuya yükle.</div>' : ''}
-    <div class="acts"><a class="cta wa" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" id="waLink">WhatsApp’ta gönder</a>${navigator.share ? '<button class="btn2" id="nativeShare">Diğer uygulamalar</button>' : ''}</div>`;
+    <div class="acts"><a class="cta wa" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" id="waLink">WhatsApp’ta gönder</a>${NATIVE || navigator.share ? '<button class="btn2" id="nativeShare">Diğer uygulamalar</button>' : ''}</div>`;
 }
 function bindLink(sh, entry) {
   const input = sh.querySelector('#linkIn');
@@ -2628,6 +2706,21 @@ function renderGardenPane() {
       <div style="min-width:0"><div class="top">${esc(e.dir === 'in' ? fromName(e.who) : toName(e.who))}<span class="tag ${e.dir === 'in' ? 'in' : ''}">${e.dir === 'in' ? 'Gelen' : 'Giden'}</span>${e.sample ? '<span class="tag sample">Örnek</span>' : ''}${e.remoteId && e.dir === 'out' ? (e.deliverAt && !e.delivered ? '<span class="tag reason">Planlandı</span>' : `<span class="tag">${e.openedAt ? 'Açıldı' : 'Açılmadı'}</span>`) : ''}${e.reaction ? `<span class="tag in">${e.dir === 'out' ? 'Cevap verdi' : 'Cevapladın'}</span>` : ''}<span class="when">${whenText(e.at)}</span></div>
       <div class="msg ${e.note ? '' : 'empty-msg'}">${e.note ? esc(e.note) : esc(e.reason)}</div></div></button>`).join('') : `<p class="small">${all.length ? 'Bu listede henüz buket yok.' : ours ? '' : 'Henüz buket yok. İlk buketini yap, bahçen büyümeye başlasın.'}</p>`}</div>`;
 }
+function openReport(bouquetId) {
+  const REASONS_R = ['Hakaret ya da taciz', 'Uygunsuz içerik', 'İstenmeyen buket', 'Diğer'];
+  openSheet(`<h3 id="sheetTitle">Buketi bildir</h3><p class="sub">Bildirimin incelenir; kurallara aykırıysa buket kaldırılır. Gönderen kim olduğunu görmez.</p>
+    <div class="chips" id="repReasons">${REASONS_R.map((r, i) => `<button class="chip" type="button" data-r="${esc(r)}" aria-pressed="${i === 0}">${r}</button>`).join('')}</div>
+    <label class="choice"><input type="checkbox" id="repBlock" checked><span><b>Göndereni engelle</b><small>Arkadaşlığınız ve varsa ortak bahçeniz kalkar, sana bir daha doğrudan buket gönderemez.</small></span></label>
+    <div class="acts"><button class="btn2" data-close>Vazgeç</button><button class="cta" id="doReport" data-autofocus>Bildir</button></div>`, sh => {
+    let reason = REASONS_R[0];
+    sh.querySelector('#repReasons').onclick = e => { const b = e.target.closest('[data-r]'); if (!b) return; reason = b.dataset.r; sh.querySelectorAll('[data-r]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); };
+    sh.querySelector('#doReport').onclick = async () => {
+      const btn = sh.querySelector('#doReport'); btn.disabled = true;
+      try { applyMe(await api(`/bouquets/${bouquetId}/report`, { body: { reason, block: sh.querySelector('#repBlock').checked } })); closeSheet(); toast('Bildirimin alındı, teşekkürler'); loadHistory(); }
+      catch (e) { btn.disabled = false; toast(e.message); }
+    };
+  });
+}
 function openEntry(id) {
   const e = W.history.find(x => x.id === id); if (!e) return;
   const date = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }).format(e.at);
@@ -2641,7 +2734,9 @@ function openEntry(id) {
     ${e.dir === 'out' && e.link ? linkBlock(e) : ''}
     ${e.remoteId && !(e.deliverAt && !e.delivered) ? `<a class="btn2" href="/b/${e.remoteId}" style="justify-self:start;text-decoration:none">Buketi 3D aç</a>` : ''}
     <div class="field"><label for="mineIn">Kendi notun</label><textarea id="mineIn" name="mine" rows="2" maxlength="140" placeholder="Bu buket sana neyi hatırlatıyor…" autocomplete="off">${esc(e.mine || '')}</textarea></div>
-    <p class="small">Bu not sadece sende görünür.</p>`, sh => {
+    <p class="small">Bu not sadece sende görünür.</p>
+    ${online() && e.remoteId && e.dir === 'in' ? '<button class="linkbtn" id="repEntry" style="color:var(--ink-2);font-size:12.5px">Uygunsuz içerik bildir</button>' : ''}`, sh => {
+    const re = sh.querySelector('#repEntry'); if (re) re.onclick = () => { closeSheet(); setTimeout(() => openReport(e.remoteId), 300); };
     sh.querySelector('#mineIn').addEventListener('input', ev => { e.mine = ev.target.value; W.mine = W.mine || {}; W.mine[e.id] = e.mine; save(); });
     if (e.dir === 'out' && e.link) bindLink(sh, e);
     const cp = sh.querySelector('#cancelPlan');
@@ -2668,6 +2763,7 @@ function renderRecvPane() {
     ${viewing.canReact ? reactHTML(viewing.reaction) : ''}
     <div class="acts"><button class="cta" data-act="story" id="storyBtn">Hikâye videosu</button><button class="btn2" data-act="recvShare" id="recvShare">Linki paylaş</button></div>
     <button class="linkbtn" data-act="recvGarden" id="recvGarden">Bahçemde gör</button>
+    ${online() && d.canReport ? '<button class="linkbtn" data-act="report" id="reportBtn" style="color:var(--ink-2);font-size:12.5px">Uygunsuz içerik bildir</button>' : ''}
   </div>`;
 }
 function renderAll() { renderTop(); renderTabs(); renderPane(); renderFoot(); }
@@ -2681,7 +2777,7 @@ async function startViewing(id) {
   sync3D(); renderAll();
   try {
     if (online()) viewing.data = await api(`/bouquets/${id}`);
-    else { const r = await fetch(`/api/bouquets/${id}`, { cache: 'no-store' }); if (!r.ok) throw new Error(String(r.status)); viewing.data = await r.json(); }
+    else { const r = await fetch(apiUrl(`/api/bouquets/${id}`), { cache: 'no-store' }); if (!r.ok) throw new Error(String(r.status)); viewing.data = await r.json(); }
   } catch (e) { viewing.error = true; renderAll(); return; }
   const d = viewing.data;
   if (d.locked) {
@@ -2737,7 +2833,7 @@ $('openGift').addEventListener('click', async () => {
   }
   if (!W.history.some(h => h.remoteId === d.id)) {
     W.history.push({ id: 'r' + d.id, remoteId: d.id, dir: 'in', who: d.sign || 'Biri', reason: d.reason || 'Buket', note: d.note || '',
-      at: d.createdAt || Date.now(), items: compact(d.items), snap: snapshot(), mine: '', link: location.href.split('#')[0] });
+      at: d.createdAt || Date.now(), items: compact(d.items), snap: snapshot(), mine: '', link: `${WEB}/b/${id}` });
     if (W.history.length > 40) W.history.shift();
     save(); toast('Buket bahçene eklendi');
   }
@@ -2854,13 +2950,14 @@ async function recordStory() {
 function openVideoSheet(blob, ext) {
   const url = URL.createObjectURL(blob), name = `demet-buket.${ext}`;
   const file = new File([blob], name, { type: blob.type });
-  const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+  const canShare = !!NATIVE || !!(navigator.canShare && navigator.canShare({ files: [file] }));
   openSheet(`<h3 id="sheetTitle">Hikâye videon hazır</h3>
     <video class="storyvid" src="${url}" autoplay loop muted playsinline></video>
-    <p class="small">${canShare ? 'Paylaş’a dokun, listeden Instagram’ı, sonra Hikâye’yi seç.' : 'Videoyu indir, Instagram’da hikâye olarak yükle.'}${ext === 'webm' ? ' Bu tarayıcı videoyu WebM olarak kaydetti. Instagram kabul etmezse Chrome’u güncelleyip tekrar dene.' : ''}</p>
-    <div class="acts">${canShare ? '<button class="cta" id="vShare" data-autofocus>Paylaş</button>' : ''}<a class="btn2" href="${url}" download="${name}" style="text-decoration:none">İndir</a></div>`, sh => {
+    <p class="small">${NATIVE ? 'Paylaş’a dokun: Instagram’ı seçip hikâyende paylaşabilir ya da “Videoyu Kaydet” ile galerine kaydedebilirsin.' : canShare ? 'Paylaş’a dokun, listeden Instagram’ı, sonra Hikâye’yi seç.' : 'Videoyu indir, Instagram’da hikâye olarak yükle.'}${ext === 'webm' ? ' Bu tarayıcı videoyu WebM olarak kaydetti. Instagram kabul etmezse Chrome’u güncelleyip tekrar dene.' : ''}</p>
+    <div class="acts">${canShare ? '<button class="cta" id="vShare" data-autofocus>Paylaş</button>' : ''}${NATIVE ? '' : `<a class="btn2" href="${url}" download="${name}" style="text-decoration:none">İndir</a>`}</div>`, sh => {
     const b = sh.querySelector('#vShare');
-    if (b) b.onclick = async () => { try { await navigator.share({ files: [file], title: 'Demet' }); } catch (e) { if (e.name !== 'AbortError') toast('Paylaşılamadı. İndir ile kaydedip yükleyebilirsin.'); } };
+    if (b && NATIVE) b.onclick = async () => { b.disabled = true; try { await NATIVE.shareFile(blob, name); } catch (e) { toast('Paylaşılamadı, tekrar dene.'); } b.disabled = false; };
+    else if (b) b.onclick = async () => { try { await navigator.share({ files: [file], title: 'Demet' }); } catch (e) { if (e.name !== 'AbortError') toast('Paylaşılamadı. İndir ile kaydedip yükleyebilirsin.'); } };
   });
 }
 
@@ -2876,7 +2973,7 @@ async function api(path, opts = {}) {
   if (opts.body) headers['content-type'] = 'application/json';
   if (TOKEN) headers.authorization = 'Bearer ' + TOKEN;
   let r;
-  try { r = await fetch('/api' + path, { method: opts.method || (opts.body ? 'POST' : 'GET'), headers, body: opts.body ? JSON.stringify(opts.body) : undefined, cache: 'no-store' }); }
+  try { r = await fetch(apiUrl('/api' + path), { method: opts.method || (opts.body ? 'POST' : 'GET'), headers, body: opts.body ? JSON.stringify(opts.body) : undefined, cache: 'no-store' }); }
   catch (e) { throw new Error('Sunucuya ulaşılamadı. Bağlantını kontrol edip tekrar dene.'); }
   const j = await r.json().catch(() => ({}));
   if (r.status === 401 && TOKEN && !opts.retried && path !== '/login') { setToken(null); await ensureSession(); return api(path, { ...opts, retried: true }); }
@@ -2891,6 +2988,7 @@ function applyMe(j) {
   if (j.user) { ME = j.user; W.gold = ME.gold; W.unlocked = ME.unlocked; W.daily = ME.daily; }
   if (j.vapidPublicKey) VAPID = j.vapidPublicKey;
   if (j.packs) PACKS_SRV = j.packs;
+  if (typeof j.iap === 'boolean') IAP_ON = j.iap;
   if (j.payments) PAYMENTS = j.payments;
   renderGold(); if (!viewing) renderTop(); else { $('meInitial').textContent = (ME.name || 'D').charAt(0).toLocaleUpperCase('tr'); $('meDot').hidden = !!ME.partner; }
   save();
@@ -2901,7 +2999,7 @@ async function loadHistory() {
     const { bouquets } = await api('/bouquets');
     const mine = W.mine || {};
     const list = bouquets.map(b => ({ id: b.id, remoteId: b.id, dir: b.dir, who: b.who, reason: b.reason || 'Buket', note: b.note || '', at: b.at,
-      items: compact(b.items.filter(i => ALL[i.type])), snap: b.hasImage ? `/api/bouquets/${b.id}/image.jpg` : null, link: b.link, openedAt: b.openedAt, toPartner: b.toPartner, withId: b.withId, mine: mine[b.id] || '',
+      items: compact(b.items.filter(i => ALL[i.type])), snap: b.hasImage ? apiUrl(`/api/bouquets/${b.id}/image.jpg`) : null, link: b.link, openedAt: b.openedAt, toPartner: b.toPartner, withId: b.withId, mine: mine[b.id] || '',
       deliverAt: b.deliverAt, delivered: b.delivered, reaction: b.reaction }));
     W.history = list.length ? list.reverse() : samples();
     save();
@@ -2934,13 +3032,25 @@ const isStandalone = () => matchMedia('(display-mode: standalone)').matches || n
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
 async function pushState() {
+  if (NATIVE) { try { return await NATIVE.push.state(); } catch (e) { return 'unsupported'; } }
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'unsupported';
   if (Notification.permission === 'denied') return 'denied';
   try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); return sub ? 'on' : 'off'; }
   catch (e) { return 'off'; }
 }
 function b64ToBytes(b64) { const p = '='.repeat((4 - b64.length % 4) % 4), raw = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(raw, c => c.charCodeAt(0)); }
+// app: ask the OS, then hand the Firebase token to the server (it changes now and then, so it is re-sent on every launch)
+async function registerNativePush(ask) {
+  if (!NATIVE || !online()) return false;
+  try {
+    const token = ask ? await NATIVE.push.enable() : await NATIVE.push.token();
+    if (!token) return false;
+    await api('/push/native', { body: { token, platform: NATIVE.platform } });
+    return true;
+  } catch (e) { if (ask) toast(e.message || 'Bildirimler açılamadı'); return false; }
+}
 async function enablePush() {
+  if (NATIVE) { const ok = await registerNativePush(true); if (!ok && (await pushState()) === 'denied') toast('Bildirim izni kapalı. Telefonun Ayarlar > Demet > Bildirimler kısmından açabilirsin.'); return ok; }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) { toast(isIOS && !isStandalone() ? 'iPhone’da önce Demet’i ana ekrana ekle' : 'Bu tarayıcı bildirimleri desteklemiyor'); return false; }
   try {
     const perm = await Notification.requestPermission();
@@ -2955,7 +3065,7 @@ async function enablePush() {
 function pushHTML(ps) {
   if (ps === 'on') return `<p class="small">Bu cihazda bildirimler açık. Sana buket gelince ya da gönderdiğin buket açılınca haber veririz.</p><button class="btn2" id="testPush" style="justify-self:start">Deneme bildirimi gönder</button>`;
   if (ps === 'off') return `<p class="small">Sana buket gelince ya da gönderdiğin buket açılınca haber verelim.</p><button class="cta" id="onPush" style="justify-self:start">Bildirimleri aç</button>`;
-  if (ps === 'denied') return `<p class="small">Bildirim izni kapalı. Tarayıcı ya da telefon ayarlarından Demet için bildirimlere izin ver.</p>`;
+  if (ps === 'denied') return `<p class="small">${NATIVE ? 'Bildirim izni kapalı. Telefonun Ayarlar > Demet > Bildirimler kısmından açabilirsin.' : 'Bildirim izni kapalı. Tarayıcı ya da telefon ayarlarından Demet için bildirimlere izin ver.'}</p>`;
   if (!window.isSecureContext) return '<p class="small">Bildirimler ve ana ekrana ekleme için site HTTPS üzerinden açılmalı. Sunucuya yükleyince çalışır.</p>';
   return `<p class="small">${isIOS && !isStandalone() ? 'iPhone’da bildirim almak için önce Demet’i ana ekrana ekle, sonra ana ekrandaki simgeden aç.' : 'Bu tarayıcı bildirimleri desteklemiyor.'}</p>`;
 }
@@ -3039,13 +3149,18 @@ async function openAccount() {
       <div id="friendBox"><button class="btn2" id="mkFriend" style="justify-self:start">Arkadaş davet et</button></div>
       <div class="field"><label for="codeIn">Davet kodun var mı?</label><div class="linkrow"><input id="codeIn" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Örneğin K7Q2MX…" style="text-transform:uppercase;letter-spacing:.12em"><button class="btn2" id="useCode">Ekle</button></div></div>
     </section>
+    ${(ME.blocked || []).length ? `<section class="acc"><h4>Engellediklerin</h4>${ME.blocked.map(x => `<div class="frow"><div class="av" aria-hidden="true">${esc(x.name.charAt(0).toLocaleUpperCase('tr'))}</div><div><b>${esc(x.name)}</b><small>Sana doğrudan buket gönderemez</small></div><button class="btn2" data-unblock="${x.id}" style="height:32px;padding:0 12px">Kaldır</button></div>`).join('')}</section>` : ''}
     <section class="acc"><h4>Özel günler</h4><div id="daysBox">${daysHTML()}</div></section>
     <section class="acc"><h4>Bildirimler</h4>${pushHTML(ps)}</section>
-    <section class="acc"><h4>Telefona yükle</h4>${installHTML()}</section>
+    ${NATIVE ? '' : `<section class="acc"><h4>Telefona yükle</h4>${installHTML()}</section>`}
     <section class="acc"><h4>Hesabını koru</h4>
       ${ME.hasPassword ? `<p class="small">${esc(ME.email)} ile kayıtlısın. Başka bir cihazda bu e-postayla giriş yapabilirsin.</p><button class="linkbtn" id="logout">Çıkış yap</button>`
         : `<p class="small">Şu an misafirsin. Hesap oluştur, telefonun değişse bile buketlerin, bahçen ve altının kaybolmasın.</p>
           <div class="acts"><button class="cta" id="accReg">Hesap oluştur</button><button class="btn2" id="accLog">Giriş yap</button></div>`}
+    </section>
+    <section class="acc"><h4>Hakkında</h4>
+      <div class="acts" style="gap:6px 16px"><button class="linkbtn" data-legal="gizlilik">Gizlilik politikası</button><button class="linkbtn" data-legal="kosullar">Kullanım koşulları</button>${SUPPORT ? `<a class="linkbtn" href="mailto:${esc(SUPPORT)}?subject=Demet">Bize yaz</a>` : ''}</div>
+      <button class="linkbtn" id="delAcc" style="color:var(--accent)">Hesabımı sil</button>
     </section>`, sh => {
     const q = sel => sh.querySelector(sel);
     bindDays(sh);
@@ -3094,6 +3209,9 @@ async function openAccount() {
     const di = q('#doInstall'); if (di) di.onclick = async () => { installEvt.prompt(); const r = await installEvt.userChoice.catch(() => null); installEvt = null; closeSheet(); if (r && r.outcome === 'accepted') toast('Demet ana ekrana eklendi'); };
     const ar = q('#accReg'); if (ar) ar.onclick = () => { closeSheet(); setTimeout(() => openAuth('register'), 300); };
     const al = q('#accLog'); if (al) al.onclick = () => { closeSheet(); setTimeout(() => openAuth('login'), 300); };
+    sh.querySelectorAll('[data-legal]').forEach(b => b.onclick = () => openExternal(`${WEB}/${b.dataset.legal}`));
+    sh.querySelectorAll('[data-unblock]').forEach(b => b.onclick = async () => { try { applyMe(await api('/block/' + b.dataset.unblock, { method: 'DELETE' })); b.closest('.frow').remove(); toast('Engel kaldırıldı'); } catch (e) { toast(e.message); } });
+    const da = q('#delAcc'); if (da) da.onclick = () => { closeSheet(); setTimeout(openDeleteAccount, 300); };
     const lo = q('#logout');
     if (lo) lo.onclick = async () => { try { await api('/logout', { body: {} }); } catch (e) {} setToken(null); location.href = '/'; };
   });
@@ -3163,6 +3281,28 @@ function openAuth(mode = 'register') {
   });
 }
 function openLogin() { openAuth('login'); }
+function openDeleteAccount() {
+  const reg = ME.hasPassword;
+  openSheet(`<h3 id="sheetTitle">Hesabını sil</h3>
+    <p class="sub">Bu işlem geri alınamaz. Hesabın, bahçen, altın bakiyen, arkadaşlıkların ve ortak bahçen silinir. Başkalarına gönderdiğin buketler onların bahçesinde kalır ama hesabınla bağı kopar.</p>
+    ${reg ? `<div class="field"><label for="delPass">Onaylamak için şifren</label><div class="passrow"><input id="delPass" type="password" autocomplete="current-password"><button type="button" class="peek" aria-pressed="false">Göster</button></div></div>` : ''}
+    <p class="err" id="delErr" role="alert" hidden></p>
+    <div class="acts"><button class="btn2" data-close data-autofocus>Vazgeç</button><button class="cta" id="doDel" style="background:#B3261E;box-shadow:none;color:#fff">Kalıcı olarak sil</button></div>`, sh => {
+    const pw = sh.querySelector('#delPass'), pk = sh.querySelector('.peek');
+    if (pk) pk.onclick = () => { const s = pw.type === 'password'; pw.type = s ? 'text' : 'password'; pk.textContent = s ? 'Gizle' : 'Göster'; };
+    sh.querySelector('#doDel').onclick = async () => {
+      const er = sh.querySelector('#delErr'), btn = sh.querySelector('#doDel'); er.hidden = true;
+      if (reg && !pw.value) { er.textContent = 'Şifreni yaz.'; er.hidden = false; pw.focus(); return; }
+      btn.disabled = true; btn.textContent = 'Siliniyor…';
+      try {
+        await api('/me', { method: 'DELETE', body: { password: reg ? pw.value : '' } });
+        setToken(null);
+        try { localStorage.removeItem('demet-v2'); localStorage.removeItem('demet-welcomed'); sessionStorage.setItem('demet-hello', JSON.stringify({ deleted: 1 })); } catch (e) {}
+        location.href = '/';
+      } catch (e) { er.textContent = e.message; er.hidden = false; btn.disabled = false; btn.textContent = 'Kalıcı olarak sil'; }
+    };
+  });
+}
 
 /* ---- first visit: the garden fills the screen behind a welcome card */
 var welcomeOpen = false;
@@ -3181,7 +3321,9 @@ function showWelcome() {
         <li>${PERK}<span>Her buket bahçene ekilir; sevgilinle olanlar ortak bahçenizde büyür.</span></li>
       </ul>
       <div class="wbtns"><button class="cta wide" id="wReg" type="button">Hesap oluştur</button><button class="btn2 wide" id="wLog" type="button">Hesabım var, giriş yap</button></div>
-      <button class="linkbtn wguest" id="wGuest" type="button">Misafir olarak giriş yap</button>`;
+      <button class="linkbtn wguest" id="wGuest" type="button">Misafir olarak giriş yap</button>
+      <p class="small" style="text-align:center;margin:0">Devam ederek <button class="linkbtn" data-legal="kosullar" style="padding:0;font-size:inherit">Kullanım koşullarını</button> ve <button class="linkbtn" data-legal="gizlilik" style="padding:0;font-size:inherit">Gizlilik politikasını</button> kabul etmiş olursun.</p>`;
+    step.querySelectorAll('[data-legal]').forEach(b => b.onclick = () => openExternal(`${WEB}/${b.dataset.legal}`));
     step.querySelector('#wReg').onclick = () => form('register');
     step.querySelector('#wLog').onclick = () => form('login');
     step.querySelector('#wGuest').onclick = () => { try { localStorage.setItem('demet-welcomed', '1'); } catch (e) {} hideWelcome(); };
@@ -3283,7 +3425,8 @@ window.addEventListener('hashchange', () => { if (!viewing) setView(hashView());
 /* ---- boot */
 resize(); placeCamera(); renderTop(); renderTabs(); renderPane(); renderFoot();
 requestAnimationFrame(tick);
-const serverCheck = fetch('/api/health', { cache: 'no-store' }).then(r => r.ok && r.json()).then(j => { serverOK = !!(j && j.ok); }).catch(() => { serverOK = false; });
+let SUPPORT = null;
+const serverCheck = fetch(apiUrl('/api/health'), { cache: 'no-store' }).then(r => r.ok && r.json()).then(j => { serverOK = !!(j && j.ok); SUPPORT = (j && j.support) || null; }).catch(() => { serverOK = false; });
 (async () => {
   try {
     const pack = await fetchPack('models.json', p => { $('loadBar').style.width = `${p * 80}%`; });
@@ -3304,15 +3447,17 @@ const serverCheck = fetch('/api/health', { cache: 'no-store' }).then(r => r.ok &
   sync3D(); renderFoot();
   await serverCheck;
   if (serverOK) { try { await ensureSession(); } catch (e) { serverOK = false; } }
-  if (serverOK && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if (serverOK && !NATIVE && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if (NATIVE) { if (online()) { registerNativePush(false); iapReady(); } NATIVE.ready(); }
   const L = $('loading'); L.style.opacity = '0'; setTimeout(() => { L.style.display = 'none'; }, 500);
   const q = new URLSearchParams(location.search);
-  if (q.has('odeme')) {
+  if (q.has('odeme') && !NATIVE) {
     toast(q.get('odeme') === 'basarili' ? `Ödeme tamamlandı. +${fmt(+q.get('altin') || 0)} altın eklendi` : 'Ödeme tamamlanamadı. Kartından para çekildiyse birkaç dakika içinde iade edilir.');
     history.replaceState(null, '', '/' + location.hash);
   }
   let hello = null; try { hello = JSON.parse(sessionStorage.getItem('demet-hello') || 'null'); sessionStorage.removeItem('demet-hello'); } catch (e) {}
-  if (hello) setTimeout(() => toast(hello.merged ? `Tekrar hoş geldin ${hello.name}. Bu cihazdaki buketler hesabına taşındı.` : `Tekrar hoş geldin ${hello.name}`), 600);
+  if (hello && hello.deleted) setTimeout(() => toast('Hesabın silindi. Seni özleyeceğiz.'), 600);
+  else if (hello) setTimeout(() => toast(hello.merged ? `Tekrar hoş geldin ${hello.name}. Bu cihazdaki buketler hesabına taşındı.` : `Tekrar hoş geldin ${hello.name}`), 600);
   let welcomed = false; try { welcomed = !!localStorage.getItem('demet-welcomed'); } catch (e) {}
   if (VIEW_ID && serverOK) startViewing(VIEW_ID);
   else {

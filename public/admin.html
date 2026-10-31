@@ -176,6 +176,7 @@ main.wrap { padding-block: 22px 60px; display: grid; gap: 22px; }
         <button class="tab" role="tab" aria-selected="true" data-tab="users">Kullanıcılar</button>
         <button class="tab" role="tab" aria-selected="false" data-tab="purchases">Satın almalar</button>
         <button class="tab" role="tab" aria-selected="false" data-tab="log">Altın işlemleri</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="reports">Şikayetler <span id="repCount" class="tag bad" hidden></span></button>
       </div>
     </div>
     <section id="pane"></section>
@@ -188,7 +189,9 @@ main.wrap { padding-block: 22px 60px; display: grid; gap: 22px; }
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const nf = new Intl.NumberFormat('tr-TR'), fmt = n => nf.format(n);
-const tl = n => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(n || 0);
+const tl = (n, cur = 'TRY') => { try { return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: cur || 'TRY' }).format(n || 0); } catch (e) { return `${n} ${cur}`; } };
+const PROV = { app_store: 'App Store', play_store: 'Google Play', demo: 'deneme', iyzico: 'iyzico' };
+const prov = p => (PROV[p.provider] || p.provider || '—') + (p.sandbox ? ' · test' : '');
 const dtf = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const fullDate = t => t ? dtf.format(t) : '—';
 function ago(t) {
@@ -231,7 +234,8 @@ $('logout').onclick = async () => { try { await api('/logout', { body: {} }); } 
 /* ---- overview */
 async function loadStats() {
   const s = await api('/overview');
-  const m = $('mode'); m.textContent = s.payments === 'iyzico' ? 'Ödeme: iyzico' : s.payments === 'demo' ? 'Ödeme: deneme modu' : 'Ödeme: kapalı'; m.classList.toggle('live', s.payments === 'iyzico');
+  const m = $('mode'); m.textContent = s.payments === 'iyzico' ? 'Ödeme: iyzico' : s.payments === 'demo' ? 'Ödeme: deneme modu' : 'Ödeme: kapalı'; m.classList.toggle('live', s.payments === 'iyzico' || s.iap); if (s.iap) m.textContent += ' · Mağaza: açık';
+  const rc = $('repCount'); rc.hidden = !s.openReports; rc.textContent = s.openReports || '';
   const pct = s.delivered ? Math.round(s.opened / s.delivered * 100) : 0;
   $('stats').innerHTML = [
     ['Kayıtlı kullanıcı', fmt(s.registered), `bu hafta +${fmt(s.newRegistered7)} · ${fmt(s.guests)} misafir`],
@@ -250,7 +254,7 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', String(x === b)));
   renderTab();
 });
-function renderTab() { if (tab === 'users') usersPane(); else if (tab === 'purchases') purchasesPane(); else logPane(); }
+function renderTab() { if (tab === 'users') usersPane(); else if (tab === 'purchases') purchasesPane(); else if (tab === 'reports') reportsPane(); else logPane(); }
 
 /* ---- users */
 const UQ = { q: '', filter: 'registered', sort: 'new', offset: 0, rows: [], total: 0 };
@@ -314,7 +318,7 @@ async function openUser(id) {
   drawUser(j);
   requestAnimationFrame(() => { root.querySelector('.scrim').classList.add('show'); const d = root.querySelector('.drawer'); d.classList.add('show'); d.focus(); });
 }
-const STATUS = { paid: ['Ödendi', 'ok'], pending: ['Bekliyor', 'warn'], failed: ['Başarısız', 'bad'] };
+const STATUS = { paid: ['Ödendi', 'ok'], pending: ['Bekliyor', 'warn'], failed: ['Başarısız', 'bad'], refunded: ['İade edildi', 'bad'] };
 const REACT = { heart: 'kalp', thanks: 'teşekkür', love: 'seni seviyorum', wow: 'çok güzel', note: 'not' };
 function drawUser(j) {
   const u = j.user, d = $('drawerRoot').querySelector('.drawer');
@@ -350,7 +354,7 @@ function drawUser(j) {
         ${u.unlocked.length ? `<div><span class="small muted" style="font-weight:600">Açtığı premium parçalar</span><div class="chips" style="margin-top:6px">${u.unlocked.map(k => `<span class="tag">${esc(k.split(':')[1])}</span>`).join('')}</div></div>` : ''}
       </section>
       <section class="sec"><h3>Altın işlemleri</h3>${j.log.length ? `<div class="list">${j.log.map(l => `<div class="li"><span>${esc(l.reason)}</span><span class="${l.delta > 0 ? 'plus' : 'minus'} num">${l.delta > 0 ? '+' : '−'}${fmt(Math.abs(l.delta))}</span><small>${fullDate(l.at)} · ${fmt(l.before)} → ${fmt(l.after)}</small></div>`).join('')}</div>` : '<p class="small muted" style="margin:0">Panelden yapılmış işlem yok.</p>'}</section>
-      <section class="sec"><h3>Satın almalar</h3>${j.purchases.length ? `<div class="list">${j.purchases.map(p => { const s = STATUS[p.status] || [p.status, '']; return `<div class="li"><span>${fmt(p.gold)} altın · ${tl(p.price)}</span><span class="tag ${s[1]}">${s[0]}</span><small>${fullDate(p.paidAt || p.createdAt)}${p.provider ? ' · ' + esc(p.provider === 'demo' ? 'deneme' : p.provider) : ''}</small></div>`; }).join('')}</div>` : '<p class="small muted" style="margin:0">Satın alma yok.</p>'}</section>
+      <section class="sec"><h3>Satın almalar</h3>${j.purchases.length ? `<div class="list">${j.purchases.map(p => { const s = STATUS[p.status] || [p.status, '']; return `<div class="li"><span>${fmt(p.gold)} altın · ${tl(p.price, p.currency)}</span><span class="tag ${s[1]}">${s[0]}</span><small>${fullDate(p.paidAt || p.createdAt)} · ${esc(prov(p))}</small></div>`; }).join('')}</div>` : '<p class="small muted" style="margin:0">Satın alma yok.</p>'}</section>
       <section class="sec"><h3>Son buketler</h3>${j.bouquets.length ? `<div class="list">${j.bouquets.map(b => `<div class="li"><span>${b.dir === 'out' ? '→ ' : '← '}${esc(b.who)} <span class="tag ${b.dir === 'in' ? 'pink' : ''}">${b.dir === 'in' ? 'Gelen' : 'Giden'}</span></span>
           <span class="small muted num">${b.stems} dal${b.cost ? ` · ${b.cost} altın` : ''}</span>
           ${b.note ? `<span class="note">“${esc(b.note)}”</span>` : ''}
@@ -387,15 +391,15 @@ function drawUser(j) {
 /* ---- purchases */
 let pStatus = 'all';
 async function purchasesPane() {
-  $('pane').innerHTML = `<div style="display:grid;gap:12px"><div class="bar"><div class="seg" role="group" aria-label="Durum">${[['all', 'Tümü'], ['paid', 'Ödendi'], ['pending', 'Bekliyor'], ['failed', 'Başarısız']].map(([v, l]) => `<button type="button" data-s="${v}" aria-pressed="${pStatus === v}">${l}</button>`).join('')}</div></div>
+  $('pane').innerHTML = `<div style="display:grid;gap:12px"><div class="bar"><div class="seg" role="group" aria-label="Durum">${[['all', 'Tümü'], ['paid', 'Ödendi'], ['pending', 'Bekliyor'], ['failed', 'Başarısız'], ['refunded', 'İade']].map(([v, l]) => `<button type="button" data-s="${v}" aria-pressed="${pStatus === v}">${l}</button>`).join('')}</div></div>
     <div class="card" id="pcard"><p class="empty">Yükleniyor…</p></div></div>`;
   document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { pStatus = b.dataset.s; purchasesPane(); });
   let j; try { j = await api('/purchases?status=' + pStatus); } catch (e) { toast(e.message); return; }
   $('pcard').innerHTML = j.purchases.length ? `<table class="tbl"><thead><tr><th>Tarih</th><th>Kullanıcı</th><th class="r">Altın</th><th class="r">Tutar</th><th>Durum</th><th class="hide-m">Yöntem</th></tr></thead><tbody>
     ${j.purchases.map(p => { const s = STATUS[p.status] || [p.status, '']; return `<tr class="click" data-id="${p.userId}"><td class="num" title="${esc(p.id)}">${fullDate(p.paidAt || p.createdAt)}</td>
       <td><div class="who"><div style="min-width:0"><b>${esc(p.userName)}</b><small>${esc(p.email || p.userId)}</small></div></div></td>
-      <td class="r"><span class="gold">${coin}${fmt(p.gold)}</span></td><td class="r num">${tl(p.price)}</td>
-      <td><span class="tag ${s[1]}" ${p.error ? `title="${esc(p.error)}"` : ''}>${s[0]}</span></td><td class="hide-m">${esc(p.provider === 'demo' ? 'deneme' : p.provider || '—')}</td></tr>`; }).join('')}
+      <td class="r"><span class="gold">${coin}${fmt(p.gold)}</span></td><td class="r num">${tl(p.price, p.currency)}</td>
+      <td><span class="tag ${s[1]}" ${p.error ? `title="${esc(p.error)}"` : ''}>${s[0]}</span></td><td class="hide-m">${esc(prov(p))}</td></tr>`; }).join('')}
     </tbody></table>` : '<p class="empty">Bu durumda satın alma yok.</p>';
   $('pcard').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => openUser(tr.dataset.id));
 }
@@ -409,6 +413,22 @@ async function logPane() {
       <td class="r num ${l.delta > 0 ? 'plus' : 'minus'}">${l.delta > 0 ? '+' : '−'}${fmt(Math.abs(l.delta))}</td><td class="hide-m num">${fmt(l.before)} → ${fmt(l.after)}</td><td>${esc(l.reason)}</td></tr>`).join('')}
     </tbody></table>` : '<p class="empty">Henüz panelden altın eklenmedi ya da düşülmedi.</p>';
   $('lcard').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => openUser(tr.dataset.id));
+}
+
+/* ---- reports */
+async function reportsPane() {
+  $('pane').innerHTML = '<div class="card" id="rcard"><p class="empty">Yükleniyor…</p></div>';
+  let j; try { j = await api('/reports'); } catch (e) { toast(e.message); return; }
+  const ST = { open: ['Açık', 'warn'], removed: ['Buket kaldırıldı', 'bad'], dismissed: ['Kapatıldı', ''] };
+  $('rcard').innerHTML = j.reports.length ? `<table class="tbl"><thead><tr><th>Tarih</th><th>Bildiren</th><th>Gönderen</th><th>Neden</th><th class="hide-m">Not</th><th>Durum</th><th></th></tr></thead><tbody>
+    ${j.reports.map(r => { const s = ST[r.status] || [r.status, '']; return `<tr><td class="num">${fullDate(r.at)}</td><td>${r.by ? `<button class="copy" data-user="${r.by}">${esc(r.byName)}</button>` : esc(r.byName)}</td>
+      <td>${r.from ? `<button class="copy" data-user="${r.from}">${esc(r.fromName)}</button>` : esc(r.fromName)}</td><td>${esc(r.reason)}</td><td class="hide-m">${r.note ? `“${esc(r.note)}”` : '<span class="muted">—</span>'}</td>
+      <td><span class="tag ${s[1]}">${s[0]}</span></td><td>${r.status === 'open' ? `<div style="display:flex;gap:6px;justify-content:flex-end">${r.exists ? `<button class="btn" data-rep="${r.id}" data-a="remove" style="color:var(--bad)">Buketi kaldır</button>` : ''}<button class="btn" data-rep="${r.id}" data-a="dismiss">Kapat</button></div>` : ''}</td></tr>`; }).join('')}
+    </tbody></table>` : '<p class="empty">Şikayet yok.</p>';
+  $('rcard').querySelectorAll('[data-user]').forEach(b => b.onclick = () => openUser(b.dataset.user));
+  $('rcard').querySelectorAll('[data-rep]').forEach(b => b.onclick = async () => {
+    try { await api('/reports/' + b.dataset.rep, { body: { action: b.dataset.a } }); toast(b.dataset.a === 'remove' ? 'Buket kaldırıldı' : 'Şikayet kapatıldı'); reportsPane(); loadStats(); } catch (e) { toast(e.message); }
+  });
 }
 
 /* ---- start */

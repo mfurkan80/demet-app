@@ -1,0 +1,32 @@
+{
+  "appId": "me.furkansahin.demet",
+  "appName": "Demet",
+  "webDir": "www",
+  "backgroundColor": "#FBFCFA",
+  "loggingBehavior": "debug",
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "allowsLinkPreview": false,
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SystemBars": { "insetsHandling": "native", "initialViewportFitValueHint": "cover" },
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "launchShowDuration": 0,
+      "backgroundColor": "#FBFCFA",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP",
+      "splashFullScreen": false,
+      "splashImmersive": false
+    },
+    "Keyboard": { "resize": "native", "resizeOnFullScreen": true },
+    "FirebaseMessaging": { "presentationOptions": ["alert", "badge", "sound"] }
+  }
+}

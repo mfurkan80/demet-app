@@ -1,0 +1,38 @@
+{
+  "name": "demet-mobile",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Demet iOS ve Android uygulaması (Capacitor)",
+  "scripts": {
+    "build": "node scripts/build-www.mjs",
+    "native": "node scripts/configure-native.mjs",
+    "sync": "npm run build && npx cap sync && npm run native",
+    "assets": "npx @capacitor/assets generate --iconBackgroundColor '#FBE9EE' --iconBackgroundColorDark '#1E141B' --splashBackgroundColor '#FBFCFA' --splashBackgroundColorDark '#161F1A'",
+    "ios": "npm run sync && npx cap open ios",
+    "android": "npm run sync && npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor-firebase/messaging": "^8.6.0",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/clipboard": "^8.0.1",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/keyboard": "^8.0.6",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@revenuecat/purchases-capacitor": "^14.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.6.0",
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource/caveat": "^5.3.0",
+    "@fontsource/figtree": "^5.3.0",
+    "esbuild": "^0.28.2",
+    "three": "^0.160.0"
+  }
+}

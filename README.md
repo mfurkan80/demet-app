@@ -79,6 +79,21 @@ Projede bir `Dockerfile` var. Dokploy'da yeni bir uygulama aç, bu klasörü Git
 
 Giriş denemeleri 15 dakikada 8 ile sınırlı; oturum 12 saat geçerli ve sunucu yeniden başlayınca kapanır. Uzun ve tahmin edilemez bir şifre kullan.
 
+## Mobil uygulama
+
+iOS ve Android uygulaması `mobile/` klasöründe (Capacitor). Kurulum, Firebase bildirimleri, RevenueCat ile App Store /
+Google Play altın satışı ve mağazaya yükleme adımları: [mobile/MOBILE.md](mobile/MOBILE.md).
+
+Uygulama için sunucuya eklenenler:
+
+- CORS: uygulamanın kendi adresleri (`capacitor://localhost`, `https://localhost`) API'ye bağlanabilir
+- `POST /api/push/native`: uygulamanın Firebase bildirim anahtarı (`FCM_SERVICE_ACCOUNT` ile gönderilir)
+- `POST /api/iap/sync` ve `POST /api/revenuecat/webhook`: mağaza satın almalarının altına çevrilmesi
+- `/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`: linklerin uygulamada açılması
+- `/gizlilik`, `/kosullar`: gizlilik politikası (KVKK aydınlatma) ve kullanım koşulları (`LEGAL_NAME`, `LEGAL_EMAIL`, `LEGAL_ADDRESS`)
+- `DELETE /api/me`: hesap silme (uygulamada ve sitede Hesabım > Hesabımı sil)
+- `POST /api/bouquets/:id/report`: uygunsuz içerik bildirme ve göndereni engelleme; yönetim panelinde Şikayetler sekmesi
+
 ## Klasörler
 
 - `server.js` : HTTP sunucusu ve bütün API uçları

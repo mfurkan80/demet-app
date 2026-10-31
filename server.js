@@ -9,6 +9,10 @@
 //   IYZICO_API_KEY, IYZICO_SECRET_KEY, IYZICO_BASE_URL   ödeme (yoksa deneme modu)
 //   DEMO_PURCHASES    "off" yapılırsa iyzico yokken deneme satın alımı kapanır
 //   ADMIN_PASSWORD    yönetim panelinin (/admin) şifresi; ayarlanmazsa panel kapalıdır
+//   FCM_SERVICE_ACCOUNT                         iOS/Android uygulama bildirimleri (Firebase servis hesabı JSON'u)
+//   REVENUECAT_SECRET_KEY, REVENUECAT_WEBHOOK_AUTH   App Store / Google Play altın satışı
+//   IOS_APP_ID (TEAMID.paket), ANDROID_PACKAGE, ANDROID_SHA256   linklerin uygulamada açılması
+//   LEGAL_NAME, LEGAL_EMAIL, LEGAL_ADDRESS     gizlilik ve kullanım koşulları sayfalarındaki veri sorumlusu bilgileri
 const http = require('http');
 const fs = require('fs');
 const fsp = require('fs/promises');
@@ -21,6 +25,7 @@ const { setupPush } = require('./lib/push');
 const catalog = require('./lib/catalog');
 const iyzico = require('./lib/iyzico');
 const setupAdmin = require('./lib/admin');
+const setupRevenueCat = require('./lib/revenuecat');
 
 const PORT = Number(process.env.PORT) || 5173;
 const ROOT = path.join(__dirname, 'public');
@@ -153,6 +158,7 @@ function publicUser(u) {
     id: u.id, name: u.name, email: u.email || null, hasPassword: !!u.passHash, createdAt: u.createdAt,
     gold: u.gold, unlocked: u.unlocked, daily: u.daily, days: u.days || [],
     partner: p ? { id: p.id, name: p.name, since: u.coupleSince } : null,
+    blocked: (u.blocked || []).map(id => store.users[id]).filter(Boolean).map(b => ({ id: b.id, name: b.name })),
     friends: (u.friends || []).map(id => store.users[id]).filter(f => f && f.id !== u.partnerId)
       .map(f => ({ id: f.id, name: f.name, since: (u.friendSince || {})[f.id] || null })).sort((a, b) => a.name.localeCompare(b.name, 'tr')),
   };
@@ -184,7 +190,7 @@ const isDelivered = b => !b.deliverAt || b.delivered;
 function publicBouquet(b, me) {
   const { fromUserId, toUserId, cost, reaction, ...rest } = b;
   const party = me && (me.id === fromUserId || me.id === toUserId);
-  return { ...rest, reaction: party ? reaction || null : null, recipient: !!(me && me.id === toUserId) };
+  return { ...rest, reaction: party ? reaction || null : null, recipient: !!(me && me.id === toUserId), canReport: !!(me && fromUserId !== me.id) };
 }
 function listItem(b, me, base) {
   const out = b.fromUserId === me.id;
@@ -201,7 +207,7 @@ function listItem(b, me, base) {
 const routes = [];
 const route = (method, re, fn) => routes.push({ method, re, fn });
 
-route('GET', /^\/api\/health$/, () => ({ ok: true, payments: iyzico.enabled ? 'iyzico' : DEMO_PURCHASES ? 'demo' : 'off' }));
+route('GET', /^\/api\/health$/, () => ({ ok: true, payments: iyzico.enabled ? 'iyzico' : DEMO_PURCHASES ? 'demo' : 'off', support: process.env.LEGAL_EMAIL || null }));
 
 // --- oturum
 route('POST', /^\/api\/session$/, async (req) => {
@@ -272,7 +278,33 @@ route('POST', /^\/api\/logout$/, (req) => {
 });
 route('GET', /^\/api\/me$/, (req) => {
   const me = authUser(req);
-  return { user: publicUser(me), vapidPublicKey: push.publicKey, packs: catalog.PACKS, payments: iyzico.enabled ? 'iyzico' : DEMO_PURCHASES ? 'demo' : 'off', pushDevices: (store.push[me.id] || []).length };
+  return { user: publicUser(me), vapidPublicKey: push.publicKey, packs: catalog.PACKS, payments: iyzico.enabled ? 'iyzico' : DEMO_PURCHASES ? 'demo' : 'off', pushDevices: push.deviceCount(me.id), nativePush: push.nativeEnabled, iap: !!process.env.REVENUECAT_SECRET_KEY };
+});
+// Hesap silme: kullanıcının kişisel verileri silinir. Başkasına gönderdiği buketler alıcının bahçesinde kalır ama
+// hesapla bağı kopar; kimseye ulaşmamış link buketleri tamamen silinir. Ödeme kayıtları yasal saklama süresi için tutulur.
+route('DELETE', /^\/api\/me$/, async (req) => {
+  const me = authUser(req);
+  limit('delete', me.id, 5, 600000);
+  const { password } = await json(req);
+  if (me.passHash && (typeof password !== 'string' || !checkPassword(password, me.passHash))) fail(401, 'Şifre hatalı.');
+  const p = me.partnerId && store.users[me.partnerId];
+  if (p && p.partnerId === me.id) { p.partnerId = null; p.coupleSince = null; }
+  for (const fid of me.friends || []) { const f = store.users[fid]; if (f) removeFriend(me, f); }
+  for (const b of Object.values(store.bouquets)) {
+    if (b.fromUserId === me.id) {
+      if (!b.toUserId && !b.openedAt) { delete store.bouquets[b.id]; fs.unlink(path.join(IMG_DIR, b.id + '.jpg'), () => {}); }
+      else b.fromUserId = null;
+    }
+    if (b.toUserId === me.id) b.toUserId = null;
+  }
+  for (const [c, inv] of Object.entries(store.invites)) if (inv.userId === me.id) delete store.invites[c];
+  for (const [k, sess] of Object.entries(store.sessions)) if (sess.userId === me.id) delete store.sessions[k];
+  for (const u of Object.values(store.users)) if (u.friends && u.friends.includes(me.id)) u.friends = u.friends.filter(id => id !== me.id);
+  delete store.push[me.id]; push.unregisterDevice(me.id, null);
+  if (me.email && store.emails[me.email] === me.id) delete store.emails[me.email];
+  delete store.users[me.id];
+  store.save();
+  return { ok: true };
 });
 route('PATCH', /^\/api\/me$/, async (req) => {
   const me = authUser(req);
@@ -326,6 +358,7 @@ route('POST', /^\/api\/invite\/([A-Za-z0-9]{6})\/accept$/, async (req, m) => {
   if (!inv) fail(404, 'Bu davet kodu geçersiz ya da süresi dolmuş.');
   const other = store.users[inv.userId], kind = inv.kind || 'partner';
   if (other.id === me.id) fail(400, 'Kendi davetini kabul edemezsin. Linki karşı tarafa gönder.');
+  if (isBlocked(me, other)) fail(403, 'Bu davet kullanılamıyor.');
   if (kind === 'friend') {
     if (friendsOf(me).length >= MAX_FRIENDS || friendsOf(other).length >= MAX_FRIENDS) fail(409, 'Arkadaş listesi dolu.');
     const was = friendsOf(me).includes(other.id);
@@ -438,6 +471,18 @@ route('DELETE', /^\/api\/push$/, async (req) => {
   push.unsubscribe(me.id, typeof endpoint === 'string' ? endpoint : null);
   return { ok: true };
 });
+route('POST', /^\/api\/push\/native$/, async (req) => {
+  const me = authUser(req);
+  const { token, platform } = await json(req, 8 * 1024);
+  if (!push.registerDevice(me.id, token, platform)) fail(400, 'Cihaz anahtarı geçersiz.');
+  return { ok: true };
+});
+route('DELETE', /^\/api\/push\/native$/, async (req) => {
+  const me = authUser(req);
+  const { token } = await json(req, 8 * 1024);
+  push.unregisterDevice(me.id, typeof token === 'string' ? token : null);
+  return { ok: true };
+});
 route('POST', /^\/api\/push\/test$/, async (req) => {
   const me = authUser(req);
   limit('pushtest', me.id, 5, 600000);
@@ -508,6 +553,34 @@ route('DELETE', /^\/api\/bouquets\/([A-Za-z0-9]+)$/, async (req, m) => {
   return { user: publicUser(me), refunded: b.cost || 0 };
 });
 const REACTIONS = { heart: 'Kalp gönderdi', thanks: 'Teşekkür ederim', love: 'Seni seviyorum', wow: 'Çok güzel olmuş', note: '' };
+// Bildir ve engelle: alıcı uygunsuz bir buketi bildirir, istersen göndereni engeller (arkadaşlık ve ortak bahçe
+// kalkar, birbirinizin davetini kabul edemezsiniz). Bildirimler yönetim panelinde görünür.
+function blockUser(me, other) {
+  if (!other || other.id === me.id) return;
+  me.blocked = [...new Set([...(me.blocked || []), other.id])];
+  removeFriend(me, other);
+  if (me.partnerId === other.id) { me.partnerId = null; me.coupleSince = null; }
+  if (other.partnerId === me.id) { other.partnerId = null; other.coupleSince = null; }
+  for (const [c, inv] of Object.entries(store.invites)) if (inv.userId === other.id || inv.userId === me.id) { /* davetler süresi dolunca zaten kapanır */ }
+}
+const isBlocked = (a, b) => !!(a && b && ((a.blocked || []).includes(b.id) || (b.blocked || []).includes(a.id)));
+route('POST', /^\/api\/bouquets\/([A-Za-z0-9]+)\/report$/, async (req, m) => {
+  const me = authUser(req);
+  limit('report', me.id, 20, 3600000);
+  const b = ID_RE.test(m[1]) && store.bouquets[m[1]];
+  if (!b) fail(404, 'Buket bulunamadı.');
+  const { reason, block } = await json(req);
+  if (!store.data.reports) store.data.reports = [];
+  store.data.reports.push({ id: randStr(8), at: Date.now(), bouquetId: b.id, by: me.id, from: b.fromUserId || null, reason: str(reason, 60) || 'Diğer', note: b.note || '', sign: b.sign || '', status: 'open' });
+  if (block && b.fromUserId) blockUser(me, store.users[b.fromUserId]);
+  store.save();
+  return { user: publicUser(me) };
+});
+route('DELETE', /^\/api\/block\/([A-Za-z0-9]+)$/, (req, m) => {
+  const me = authUser(req);
+  me.blocked = (me.blocked || []).filter(id => id !== m[1]); store.save();
+  return { user: publicUser(me) };
+});
 route('POST', /^\/api\/bouquets\/([A-Za-z0-9]+)\/react$/, async (req, m) => {
   const me = authUser(req);
   limit('react', me.id, 30, 600000);
@@ -571,6 +644,7 @@ route('GET', /^\/api\/bouquets\/([A-Za-z0-9]+)\/image\.jpg$/, async (req, m, res
 });
 
 setupAdmin({ route, store, fail, json, limit, clientIp, push, catalog, str });
+setupRevenueCat({ route, store, fail, json, authUser, publicUser, catalog, push, limit });
 
 /* ================================================================== pages */
 async function page(req, res, meta) {
@@ -595,6 +669,15 @@ async function page(req, res, meta) {
 }
 const GZ_EXT = new Set(['.json', '.js', '.html', '.css', '.webmanifest', '.svg']);
 const gzCache = new Map();
+const APP_ORIGINS = new Set(['capacitor://localhost', 'https://localhost', 'http://localhost', ...(process.env.APP_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)]);
+async function legalPage(req, res, name) {
+  const fill = { NAME: process.env.LEGAL_NAME || 'Demet', EMAIL: process.env.LEGAL_EMAIL || 'destek@demet.app', ADDRESS: process.env.LEGAL_ADDRESS || '', URL: PUBLIC_URL || baseUrl(req) };
+  let html = await fsp.readFile(path.join(ROOT, 'legal', name + '.html'), 'utf8');
+  html = html.replace(/\{\{(NAME|EMAIL|ADDRESS|URL)\}\}/g, (_, k) => escHtml(fill[k]));
+  const headers = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache', vary: 'accept-encoding' };
+  if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) { const buf = zlib.gzipSync(html); res.writeHead(200, { ...headers, 'content-encoding': 'gzip', 'content-length': buf.length }); return res.end(buf); }
+  send(res, 200, html, headers);
+}
 async function adminPage(req, res) {
   const html = await fsp.readFile(path.join(ROOT, 'admin.html'));
   const headers = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow',
@@ -667,6 +750,26 @@ http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://x');
     const urlPath = decodeURIComponent(url.pathname);
+    // iOS/Android uygulaması sayfaları kendi içinden (capacitor://localhost, https://localhost) açar ve API'ye buradan bağlanır
+    const origin = req.headers.origin;
+    if (origin && APP_ORIGINS.has(origin) && urlPath.startsWith('/api/')) {
+      res.setHeader('access-control-allow-origin', origin); res.setHeader('vary', 'origin');
+      res.setHeader('access-control-allow-headers', 'authorization, content-type');
+      res.setHeader('access-control-allow-methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+      res.setHeader('access-control-max-age', '600');
+      if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+    }
+    if (urlPath === '/.well-known/apple-app-site-association' || urlPath === '/apple-app-site-association') {
+      if (!process.env.IOS_APP_ID) return send(res, 404, { error: 'Bulunamadı' });
+      return send(res, 200, { applinks: { details: [{ appIDs: [process.env.IOS_APP_ID], components: [{ '/': '/b/*' }, { '/': '/esles/*' }] }] } });
+    }
+    if (urlPath === '/.well-known/assetlinks.json') {
+      if (!process.env.ANDROID_PACKAGE || !process.env.ANDROID_SHA256) return send(res, 404, { error: 'Bulunamadı' });
+      return send(res, 200, [{ relation: ['delegate_permission/common.handle_all_urls'],
+        target: { namespace: 'android_app', package_name: process.env.ANDROID_PACKAGE, sha256_cert_fingerprints: process.env.ANDROID_SHA256.split(',').map(x => x.trim()).filter(Boolean) } }]);
+    }
+    if (urlPath === '/gizlilik' || urlPath === '/kosullar') return legalPage(req, res, urlPath.slice(1));
+    if (urlPath.startsWith('/legal/')) return send(res, 404, 'Bulunamadı');
     if (urlPath.startsWith('/api/')) {
       for (const r of routes) {
         if (r.method !== req.method) continue;
@@ -706,6 +809,7 @@ http.createServer(async (req, res) => {
   }
   console.log(`\n  Veri:    ${DATA_DIR}`);
   console.log(`  Yönetim: ${process.env.ADMIN_PASSWORD ? `/admin` : 'kapalı (ADMIN_PASSWORD ayarlanmamış)'}`);
+  console.log(`  Mağaza:  ${process.env.REVENUECAT_SECRET_KEY ? 'App Store / Google Play (RevenueCat)' : 'kapalı'} · Uygulama bildirimi: ${push.nativeEnabled ? 'açık' : 'kapalı'}`);
   console.log(`  Ödeme:   ${iyzico.enabled ? `iyzico (${iyzico.BASE})` : DEMO_PURCHASES ? 'deneme modu (para çekilmez)' : 'kapalı'}`);
   if (PUBLIC_URL) console.log(`  Linkler: ${PUBLIC_URL}`);
   console.log('\n  Durdurmak için Ctrl+C\n');
