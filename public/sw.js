@@ -1,5 +1,5 @@
 // Demet service worker: bildirimler + hızlı açılış için önbellek.
-const VERSION = 'demet-v5';
+const VERSION = 'demet-v6';
 const ASSETS = /\/(models|garden)\.json(\?|$)|\/thumbs\/|\/icons\/|cdn\.jsdelivr\.net\/npm\/three@|fonts\.(googleapis|gstatic)\.com/;
 
 self.addEventListener('install', e => {
@@ -16,7 +16,8 @@ self.addEventListener('fetch', e => {
   if (url.origin === location.origin && url.pathname.startsWith('/api/') && !url.pathname.endsWith('/image.jpg')) return;
   // sayfalar: önce ağ, çevrimdışıysa önbellekteki ana sayfa
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(VERSION).then(c => c.put('/', copy)).catch(() => {}); return res; })
+    if (url.pathname.startsWith('/admin')) return; // yönetim paneli önbelleğe girmez
+    e.respondWith(fetch(req).then(res => { if (url.pathname === '/' && res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put('/', copy)).catch(() => {}); } return res; })
       .catch(() => caches.match('/')));
     return;
   }

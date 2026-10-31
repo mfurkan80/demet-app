@@ -8,6 +8,7 @@
 //   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT   bildirim anahtarları (yoksa üretilir)
 //   IYZICO_API_KEY, IYZICO_SECRET_KEY, IYZICO_BASE_URL   ödeme (yoksa deneme modu)
 //   DEMO_PURCHASES    "off" yapılırsa iyzico yokken deneme satın alımı kapanır
+//   ADMIN_PASSWORD    yönetim panelinin (/admin) şifresi; ayarlanmazsa panel kapalıdır
 const http = require('http');
 const fs = require('fs');
 const fsp = require('fs/promises');
@@ -19,6 +20,7 @@ const { Store } = require('./lib/store');
 const { setupPush } = require('./lib/push');
 const catalog = require('./lib/catalog');
 const iyzico = require('./lib/iyzico');
+const setupAdmin = require('./lib/admin');
 
 const PORT = Number(process.env.PORT) || 5173;
 const ROOT = path.join(__dirname, 'public');
@@ -130,6 +132,7 @@ function authUser(req, required = true) {
   const s = m && store.sessions[sha(m[1])];
   const user = s && store.users[s.userId];
   if (!user && required) fail(401, 'Oturumun sona ermiş. Sayfayı yenile.');
+  if (user && Date.now() - (user.seenAt || 0) > 5 * 60000) { user.seenAt = Date.now(); store.save(); }
   return user || null;
 }
 function hashPassword(pw) {
@@ -527,6 +530,8 @@ route('GET', /^\/api\/bouquets\/([A-Za-z0-9]+)\/image\.jpg$/, async (req, m, res
   catch (e) { fail(404, 'Bulunamadı'); }
 });
 
+setupAdmin({ route, store, fail, json, limit, clientIp, push, catalog, str });
+
 /* ================================================================== pages */
 async function page(req, res, meta) {
   let html = await fsp.readFile(path.join(ROOT, 'index.html'), 'utf8');
@@ -550,6 +555,13 @@ async function page(req, res, meta) {
 }
 const GZ_EXT = new Set(['.json', '.js', '.html', '.css', '.webmanifest', '.svg']);
 const gzCache = new Map();
+async function adminPage(req, res) {
+  const html = await fsp.readFile(path.join(ROOT, 'admin.html'));
+  const headers = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow',
+    'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer', vary: 'accept-encoding' };
+  if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) { const buf = zlib.gzipSync(html); res.writeHead(200, { ...headers, 'content-encoding': 'gzip', 'content-length': buf.length }); return res.end(buf); }
+  res.writeHead(200, { ...headers, 'content-length': html.length }); res.end(html);
+}
 function serveStatic(req, res, urlPath) {
   let file = path.normalize(path.join(ROOT, urlPath));
   if (!file.startsWith(ROOT)) return send(res, 403, 'Yasak');
@@ -640,6 +652,7 @@ http.createServer(async (req, res) => {
       return page(req, res, u && { title: `${u.name} seni Demet’e davet etti`, desc: 'Eşleşin, birbirinize 3D buket gönderin.', url: `${baseUrl(req)}/esles/${m[1].toUpperCase()}` });
     }
     if (urlPath === '/' || urlPath === '/index.html') return page(req, res, null);
+    if (urlPath === '/admin' || urlPath === '/admin/' || urlPath === '/admin.html') return adminPage(req, res);
     return serveStatic(req, res, urlPath);
   } catch (e) {
     if (e instanceof HttpError) return res.headersSent ? res.end() : send(res, e.code, { error: e.message });
@@ -652,6 +665,7 @@ http.createServer(async (req, res) => {
     for (const a of list || []) if (a.family === 'IPv4' && !a.internal) console.log(`  Telefonda (aynı Wi-Fi): http://${a.address}:${PORT}`);
   }
   console.log(`\n  Veri:    ${DATA_DIR}`);
+  console.log(`  Yönetim: ${process.env.ADMIN_PASSWORD ? `/admin` : 'kapalı (ADMIN_PASSWORD ayarlanmamış)'}`);
   console.log(`  Ödeme:   ${iyzico.enabled ? `iyzico (${iyzico.BASE})` : DEMO_PURCHASES ? 'deneme modu (para çekilmez)' : 'kapalı'}`);
   if (PUBLIC_URL) console.log(`  Linkler: ${PUBLIC_URL}`);
   console.log('\n  Durdurmak için Ctrl+C\n');

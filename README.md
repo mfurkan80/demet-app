@@ -66,6 +66,18 @@ Projede bir `Dockerfile` var. Dokploy'da yeni bir uygulama aç, bu klasörü Git
 - Gerçek satış için şirket (şahıs şirketi yeterli olabilir), mesafeli satış sözleşmesi ve dijital içerikte cayma hakkı
   onayı gibi yasal adımları tamamlaman gerekir
 
+## Yönetim paneli
+
+`/admin` adresinde açılır. Sunucuda `ADMIN_PASSWORD` ortam değişkeni ayarlı değilse panel tamamen kapalıdır.
+
+- Genel durum: kayıtlı ve misafir kullanıcılar, son 7 günde aktif olanlar, eşleşen çiftler, buketler, dolaşımdaki altın, gelir
+- Kullanıcılar: arama (ad, e-posta, kimlik), filtre (kayıtlı, misafir, eşli, ödeme yapan), sıralama
+- Kullanıcı ayrıntısı: hesap bilgileri, açtığı premium parçalar, son buketleri, satın almaları
+- Altın ekleme ve düşme: neden yazmak zorunlu, bakiye eksiye düşemez, istenirse kullanıcıya bildirim gider. Her işlem `adminLog` kaydına düşer.
+- Satın almalar ve altın işlemleri listesi
+
+Giriş denemeleri 15 dakikada 8 ile sınırlı; oturum 12 saat geçerli ve sunucu yeniden başlayınca kapanır. Uzun ve tahmin edilemez bir şifre kullan.
+
 ## Klasörler
 
 - `server.js` : HTTP sunucusu ve bütün API uçları

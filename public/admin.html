@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#FBFCFA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161F1A" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/icons/favicon.png" type="image/png">
+<title>Demet Yönetim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --bg: #F4F6F3; --surface: #FFFFFF; --surface-2: #EFF3F0; --ink: #1C2922; --ink-2: #5A6A61; --line: #DDE5DF;
+  --accent: #B5244D; --accent-ink: #FFFFFF; --accent-soft: #F7DCE4; --gold: #9A6A12; --gold-soft: #FBF0D3; --gold-line: #EBD39A;
+  --ok: #1E7B4A; --ok-soft: #DDF2E5; --warn: #9A5B00; --warn-soft: #FDEBCB; --bad: #B3261E; --bad-soft: #FBE0DD;
+  --scrim: rgba(18, 28, 22, .4); --shadow: 0 20px 50px -24px rgba(20, 40, 30, .45);
+  --font-display: "Bricolage Grotesque", "Figtree", system-ui, sans-serif; --font: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1512; --surface: #161F1A; --surface-2: #1D2822; --ink: #EAF1EC; --ink-2: #9AAEA2; --line: #2A3630;
+    --accent: #F0728F; --accent-ink: #2B0B15; --accent-soft: #3A1A25; --gold: #E9B949; --gold-soft: #33280E; --gold-line: #5A4619;
+    --ok: #6FD39C; --ok-soft: #173525; --warn: #F2B95A; --warn-soft: #3A2A0E; --bad: #FF8A80; --bad-soft: #3D1916; --scrim: rgba(0,0,0,.6); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1512; --surface: #161F1A; --surface-2: #1D2822; --ink: #EAF1EC; --ink-2: #9AAEA2; --line: #2A3630;
+  --accent: #F0728F; --accent-ink: #2B0B15; --accent-soft: #3A1A25; --gold: #E9B949; --gold-soft: #33280E; --gold-line: #5A4619;
+  --ok: #6FD39C; --ok-soft: #173525; --warn: #F2B95A; --warn-soft: #3A2A0E; --bad: #FF8A80; --bad-soft: #3D1916; --scrim: rgba(0,0,0,.6); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+.coin { display: inline-block; width: 15px; height: 15px; border-radius: 50%; vertical-align: -2px; flex: none;
+  background: radial-gradient(circle at 34% 30%, #FFF1B8 0 12%, #F2C552 38%, #C98E1E 72%, #8E5E0E 100%); box-shadow: inset 0 0 0 1.5px rgba(110,70,0,.35); }
+
+/* login */
+.login { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+.login form { width: min(100%, 380px); background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 28px; display: grid; gap: 14px; box-shadow: var(--shadow); }
+.mark { font-family: var(--font-display); font-weight: 800; font-size: 30px; letter-spacing: -0.04em; line-height: 1; margin: 0; }
+.mark small { display: block; font-family: var(--font); font-weight: 600; font-size: 14px; letter-spacing: 0; color: var(--ink-2); margin-top: 6px; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
+.in { height: 44px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface-2); padding: 0 12px; width: 100%; min-width: 0; }
+.in:focus { border-color: var(--accent); outline: none; }
+.cta { height: 44px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 700; padding: 0 20px; }
+.cta:disabled { opacity: .5; cursor: default; }
+.btn { height: 36px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); padding: 0 14px; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; color: var(--ink); }
+.btn:hover { border-color: var(--ink-2); }
+.err { color: var(--bad); font-size: 14px; font-weight: 600; margin: 0; }
+.muted { color: var(--ink-2); }
+.small { font-size: 13px; }
+
+/* shell */
+header.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.wrap { max-width: 1200px; margin: 0 auto; padding-inline: max(16px, env(safe-area-inset-left, 0px)); }
+.top .wrap { display: flex; align-items: center; gap: 10px; height: 60px; }
+.top .mark { font-size: 22px; display: flex; align-items: baseline; gap: 8px; }
+.top .mark small { display: inline; margin: 0; font-size: 13px; }
+.top .sp { flex: 1; }
+main.wrap { padding-block: 22px 60px; display: grid; gap: 22px; }
+.mode { font-size: 12.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+.mode.live { background: var(--ok-soft); color: var(--ok); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: grid; gap: 2px; }
+.stat span { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.stat b { font-family: var(--font-display); font-size: 28px; line-height: 1.1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 6px; }
+.stat small { font-size: 12.5px; color: var(--ink-2); }
+
+.tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab { border: 0; background: none; padding: 10px 4px; margin-right: 14px; font-weight: 700; color: var(--ink-2); border-bottom: 2.5px solid transparent; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-color: var(--accent); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar .in { height: 38px; flex: 1 1 220px; max-width: 360px; }
+.bar select.in { flex: 0 0 auto; width: auto; }
+.seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface-2); flex-wrap: wrap; }
+.seg button { border: 0; background: transparent; border-radius: 999px; height: 32px; padding: 0 12px; font-weight: 600; font-size: 14px; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl th { text-align: left; font-size: 12.5px; font-weight: 700; color: var(--ink-2); padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; background: var(--surface-2); }
+.tbl td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl .r { text-align: right; }
+.tbl tbody tr.click { cursor: pointer; }
+.tbl tbody tr.click:hover { background: var(--surface-2); }
+.who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-family: var(--font-display); font-weight: 800; flex: none; }
+.av.guest { background: var(--surface-2); color: var(--ink-2); }
+.who b { display: block; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+.who small { display: block; color: var(--ink-2); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+.tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+.tag.ok { background: var(--ok-soft); color: var(--ok); } .tag.warn { background: var(--warn-soft); color: var(--warn); } .tag.bad { background: var(--bad-soft); color: var(--bad); } .tag.pink { background: var(--accent-soft); color: var(--accent); }
+.gold { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.plus { color: var(--ok); font-weight: 700; } .minus { color: var(--bad); font-weight: 700; }
+.more { display: flex; justify-content: center; padding: 12px; }
+.empty { padding: 28px; text-align: center; color: var(--ink-2); }
+@media (max-width: 560px) { .mode, .top .mark small { display: none; } }
+.btn, .mode { white-space: nowrap; }
+@media (max-width: 760px) {
+  .tbl .hide-m { display: none; }
+  .tbl th, .tbl td { padding: 10px; }
+}
+
+/* drawer */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 20; opacity: 0; transition: opacity .2s ease; }
+.scrim.show { opacity: 1; }
+.drawer { position: fixed; z-index: 21; top: 0; right: 0; bottom: 0; width: min(100%, 520px); background: var(--bg); box-shadow: var(--shadow);
+  transform: translateX(104%); transition: transform .3s cubic-bezier(.2,.85,.25,1); overflow-y: auto; overscroll-behavior: contain; }
+.drawer.show { transform: none; }
+.drawer .head { position: sticky; top: 0; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); padding: 16px 18px; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid var(--line); z-index: 1; }
+.drawer .head .av { width: 44px; height: 44px; font-size: 19px; }
+.drawer .head h2 { margin: 0; font-family: var(--font-display); font-size: 22px; letter-spacing: -0.02em; line-height: 1.1; }
+.drawer .head p { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); word-break: break-all; }
+.x { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--surface-2); font-size: 20px; line-height: 1; flex: none; }
+.dbody { padding: 18px; display: grid; gap: 16px; }
+.sec { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 12px; }
+.sec h3 { margin: 0; font-size: 15px; }
+.kv { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px 14px; font-size: 14px; }
+.kv div > span:first-child { display: block; font-size: 12.5px; color: var(--ink-2); font-weight: 600; }
+.wallet { border-color: var(--gold-line); background: linear-gradient(180deg, var(--gold-soft), var(--surface) 70%); }
+.balance { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 38px; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.balance .coin { width: 30px; height: 30px; }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.quick button { height: 34px; border-radius: 999px; border: 1.5px solid var(--gold-line); background: var(--surface); font-weight: 700; padding: 0 12px; font-variant-numeric: tabular-nums; }
+.quick button.neg { border-color: var(--line); color: var(--bad); }
+.adj { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 8px; }
+.chk { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.chk input { width: 18px; height: 18px; accent-color: var(--accent); }
+.preview { font-size: 14px; font-weight: 600; min-height: 20px; }
+.list { display: grid; }
+.li { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.li:last-child { border-bottom: 0; }
+.li small { color: var(--ink-2); font-size: 12.5px; grid-column: 1 / -1; }
+.li .note { grid-column: 1 / -1; color: var(--ink-2); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.copy { border: 0; background: none; color: var(--ink-2); text-decoration: underline; padding: 0; font-size: 13px; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 30px); opacity: 0; z-index: 40; background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px; transition: .25s ease; pointer-events: none; max-width: calc(100% - 32px); text-align: center; }
+.toast.show { transform: translate(-50%, 0); opacity: 1; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; } }
+</style>
+</head>
+<body>
+<div class="login" id="login" hidden>
+  <form id="loginForm" novalidate>
+    <h1 class="mark" translate="no">Demet<small>Yönetim paneli</small></h1>
+    <div class="field"><label for="pw">Şifre</label><input class="in" id="pw" type="password" autocomplete="current-password" autofocus></div>
+    <p class="err" id="loginErr" role="alert" hidden></p>
+    <button class="cta" type="submit">Giriş yap</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <header class="top"><div class="wrap">
+    <p class="mark" translate="no">Demet <small>Yönetim</small></p>
+    <span class="mode" id="mode"></span>
+    <span class="sp"></span>
+    <a class="btn" href="/" target="_blank" rel="noopener">Siteyi aç</a>
+    <button class="btn" id="logout" type="button">Çıkış</button>
+  </div></header>
+  <main class="wrap">
+    <section class="stats" id="stats" aria-label="Genel durum"></section>
+    <div>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="users">Kullanıcılar</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="purchases">Satın almalar</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="log">Altın işlemleri</button>
+      </div>
+    </div>
+    <section id="pane"></section>
+  </main>
+</div>
+<div id="drawerRoot"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nf = new Intl.NumberFormat('tr-TR'), fmt = n => nf.format(n);
+const tl = n => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(n || 0);
+const dtf = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const fullDate = t => t ? dtf.format(t) : '—';
+function ago(t) {
+  if (!t) return '—';
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return 'şimdi'; if (s < 3600) return `${Math.floor(s / 60)} dk önce`; if (s < 86400) return `${Math.floor(s / 3600)} sa önce`;
+  if (s < 86400 * 30) return `${Math.floor(s / 86400)} gün önce`;
+  return new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }).format(t);
+}
+const initial = n => (String(n || '?').trim().charAt(0) || '?').toLocaleUpperCase('tr');
+const coin = '<i class="coin" aria-hidden="true"></i>';
+function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2600); }
+
+let TOKEN = null; try { TOKEN = sessionStorage.getItem('demet-admin'); } catch (e) {}
+async function api(path, opts = {}) {
+  const headers = {}; if (opts.body) headers['content-type'] = 'application/json'; if (TOKEN) headers.authorization = 'Admin ' + TOKEN;
+  let r;
+  try { r = await fetch('/api/admin' + path, { method: opts.method || (opts.body ? 'POST' : 'GET'), headers, body: opts.body ? JSON.stringify(opts.body) : undefined, cache: 'no-store' }); }
+  catch (e) { throw new Error('Sunucuya ulaşılamadı.'); }
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && path !== '/login') { setToken(null); showLogin(j.error); throw new Error(j.error || 'Oturum kapandı'); }
+  if (!r.ok) throw new Error(j.error || 'Bir hata oluştu.');
+  return j;
+}
+function setToken(t) { TOKEN = t; try { t ? sessionStorage.setItem('demet-admin', t) : sessionStorage.removeItem('demet-admin'); } catch (e) {} }
+function showLogin(msg) {
+  $('app').hidden = true; $('login').hidden = false; closeDrawer();
+  const e = $('loginErr'); if (msg) { e.textContent = msg; e.hidden = false; } else e.hidden = true;
+  $('pw').value = ''; $('pw').focus();
+}
+$('loginForm').onsubmit = async ev => {
+  ev.preventDefault();
+  const btn = ev.target.querySelector('button'), e = $('loginErr'); e.hidden = true; btn.disabled = true;
+  try { const j = await api('/login', { body: { password: $('pw').value } }); setToken(j.token); start(); }
+  catch (err) { e.textContent = err.message; e.hidden = false; $('pw').select(); }
+  finally { btn.disabled = false; }
+};
+$('logout').onclick = async () => { try { await api('/logout', { body: {} }); } catch (e) {} setToken(null); showLogin(); };
+
+/* ---- overview */
+async function loadStats() {
+  const s = await api('/overview');
+  const m = $('mode'); m.textContent = s.payments === 'iyzico' ? 'Ödeme: iyzico' : s.payments === 'demo' ? 'Ödeme: deneme modu' : 'Ödeme: kapalı'; m.classList.toggle('live', s.payments === 'iyzico');
+  const pct = s.delivered ? Math.round(s.opened / s.delivered * 100) : 0;
+  $('stats').innerHTML = [
+    ['Kayıtlı kullanıcı', fmt(s.registered), `bu hafta +${fmt(s.newRegistered7)} · ${fmt(s.guests)} misafir`],
+    ['Aktif', fmt(s.active7), `son 7 gün · bugün ${fmt(s.active1)}`],
+    ['Eşleşen çift', fmt(s.couples), `${fmt(s.pushUsers)} kişide bildirim açık`],
+    ['Buket', fmt(s.bouquets), `bu hafta +${fmt(s.bouquets7)} · %${pct} açıldı${s.scheduled ? ` · ${fmt(s.scheduled)} planlı` : ''}`],
+    ['Dolaşımdaki altın', `${coin}${fmt(s.goldRegistered)}`, `kayıtlılarda · misafirlerle ${fmt(s.gold)}`],
+    ['Gelir', tl(s.revenue), `son 30 gün ${tl(s.revenue30)} · ${fmt(s.paidCount)} ödeme`],
+  ].map(([k, v, d]) => `<div class="stat"><span>${k}</span><b>${v}</b><small>${d}</small></div>`).join('');
+}
+
+/* ---- tabs */
+let tab = 'users';
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+  tab = b.dataset.tab;
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  renderTab();
+});
+function renderTab() { if (tab === 'users') usersPane(); else if (tab === 'purchases') purchasesPane(); else logPane(); }
+
+/* ---- users */
+const UQ = { q: '', filter: 'registered', sort: 'new', offset: 0, rows: [], total: 0 };
+function usersPane() {
+  $('pane').innerHTML = `<div style="display:grid;gap:12px">
+    <div class="bar">
+      <input class="in" id="q" type="search" placeholder="Ad, e-posta ya da kullanıcı kimliği…" value="${esc(UQ.q)}" aria-label="Kullanıcı ara" autocomplete="off" spellcheck="false">
+      <div class="seg" role="group" aria-label="Filtre">${[['registered', 'Kayıtlı'], ['guest', 'Misafir'], ['paired', 'Eşli'], ['paid', 'Ödeme yapan'], ['all', 'Tümü']].map(([v, l]) => `<button type="button" data-f="${v}" aria-pressed="${UQ.filter === v}">${l}</button>`).join('')}</div>
+      <select class="in" id="sort" aria-label="Sırala">${[['new', 'En yeni'], ['active', 'Son görülen'], ['gold', 'En çok altın'], ['bouquets', 'En çok buket'], ['paid', 'En çok ödeyen']].map(([v, l]) => `<option value="${v}" ${UQ.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    </div>
+    <div class="card"><table class="tbl"><thead><tr><th>Kullanıcı</th><th class="r">Altın</th><th class="hide-m">Eşi</th><th class="r hide-m">Gönderdi / Aldı</th><th class="r hide-m">Ödedi</th><th class="hide-m">Son görülme</th></tr></thead><tbody id="urows"></tbody></table>
+    <div class="more" id="umore" hidden><button class="btn" type="button" id="moreBtn">Daha fazla göster</button></div></div>
+    <p class="small muted" id="ucount"></p>
+  </div>`;
+  let t; $('q').oninput = e => { clearTimeout(t); t = setTimeout(() => { UQ.q = e.target.value.trim(); loadUsers(); }, 250); };
+  document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { UQ.filter = b.dataset.f; document.querySelectorAll('[data-f]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); loadUsers(); });
+  $('sort').onchange = e => { UQ.sort = e.target.value; loadUsers(); };
+  $('moreBtn').onclick = () => loadUsers(true);
+  loadUsers();
+}
+async function loadUsers(more = false) {
+  UQ.offset = more ? UQ.rows.length : 0;
+  const p = new URLSearchParams({ q: UQ.q, filter: UQ.filter, sort: UQ.sort, offset: UQ.offset, limit: 50 });
+  try {
+    const j = await api('/users?' + p);
+    UQ.rows = more ? UQ.rows.concat(j.users) : j.users; UQ.total = j.total;
+    drawUsers();
+  } catch (e) { toast(e.message); }
+}
+function drawUsers() {
+  const body = $('urows'); if (!body) return;
+  body.innerHTML = UQ.rows.length ? UQ.rows.map(u => `<tr class="click" tabindex="0" data-id="${u.id}">
+      <td><div class="who"><div class="av ${u.registered ? '' : 'guest'}" aria-hidden="true">${esc(initial(u.name))}</div><div style="min-width:0"><b>${esc(u.name)}</b><small>${u.email ? esc(u.email) : 'Misafir · ' + u.id}</small></div></div></td>
+      <td class="r"><span class="gold">${coin}${fmt(u.gold)}</span></td>
+      <td class="hide-m">${u.partner ? esc(u.partner.name) : '<span class="muted">—</span>'}</td>
+      <td class="r hide-m num">${fmt(u.sent)} / ${fmt(u.recv)}</td>
+      <td class="r hide-m num">${u.paidTL ? tl(u.paidTL) : '<span class="muted">—</span>'}</td>
+      <td class="hide-m" title="${esc(fullDate(u.seenAt))}">${ago(u.seenAt)}</td></tr>`).join('')
+    : `<tr><td colspan="6" class="empty">${UQ.q ? 'Aramaya uyan kullanıcı yok.' : 'Bu filtrede kullanıcı yok.'}</td></tr>`;
+  body.querySelectorAll('tr[data-id]').forEach(tr => { tr.onclick = () => openUser(tr.dataset.id); tr.onkeydown = e => { if (e.key === 'Enter') openUser(tr.dataset.id); }; });
+  $('umore').hidden = UQ.rows.length >= UQ.total;
+  $('ucount').textContent = `${fmt(UQ.total)} kullanıcıdan ${fmt(UQ.rows.length)} tanesi gösteriliyor`;
+}
+
+/* ---- user drawer */
+let lastFocus = null;
+function closeDrawer() {
+  const root = $('drawerRoot'), d = root.querySelector('.drawer'), s = root.querySelector('.scrim');
+  if (!d) return;
+  d.classList.remove('show'); s.classList.remove('show');
+  setTimeout(() => { root.innerHTML = ''; }, 300);
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+async function openUser(id) {
+  lastFocus = document.activeElement;
+  let j; try { j = await api('/users/' + id); } catch (e) { toast(e.message); return; }
+  const root = $('drawerRoot');
+  root.innerHTML = `<div class="scrim" data-close></div><aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="dName" tabindex="-1"></aside>`;
+  root.querySelector('[data-close]').onclick = closeDrawer;
+  drawUser(j);
+  requestAnimationFrame(() => { root.querySelector('.scrim').classList.add('show'); const d = root.querySelector('.drawer'); d.classList.add('show'); d.focus(); });
+}
+const STATUS = { paid: ['Ödendi', 'ok'], pending: ['Bekliyor', 'warn'], failed: ['Başarısız', 'bad'] };
+const REACT = { heart: 'kalp', thanks: 'teşekkür', love: 'seni seviyorum', wow: 'çok güzel', note: 'not' };
+function drawUser(j) {
+  const u = j.user, d = $('drawerRoot').querySelector('.drawer');
+  d.innerHTML = `<div class="head"><div class="av ${u.registered ? '' : 'guest'}" aria-hidden="true">${esc(initial(u.name))}</div>
+      <div style="min-width:0"><h2 id="dName">${esc(u.name)}</h2><p>${u.email ? esc(u.email) + ' · ' : 'Misafir · '}<button class="copy" type="button" id="cpId" title="Kimliği kopyala">${u.id}</button></p></div>
+      <button class="x" type="button" data-close aria-label="Kapat">×</button></div>
+    <div class="dbody">
+      <section class="sec wallet" aria-labelledby="wH">
+        <h3 id="wH">Altın</h3>
+        <div class="balance">${coin}<span>${fmt(u.gold)}</span></div>
+        <div class="quick">${[50, 100, 250, 500, 1000].map(n => `<button type="button" data-q="${n}">+${n}</button>`).join('')}<button type="button" class="neg" data-q="-50">−50</button><button type="button" class="neg" data-q="-100">−100</button></div>
+        <form id="goldForm" class="field" novalidate style="gap:10px">
+          <div class="adj"><input class="in num" id="gDelta" type="number" step="1" inputmode="numeric" placeholder="Örn. 100 ya da -50" aria-label="Miktar">
+            <input class="in" id="gReason" maxlength="120" placeholder="Neden? Örn. hediye, iade, telafi…" aria-label="Neden"></div>
+          <label class="chk"><input type="checkbox" id="gNotify" checked> Altın eklenince kullanıcıya bildirim gönder</label>
+          <p class="preview" id="gPrev" aria-live="polite"></p>
+          <p class="err" id="gErr" role="alert" hidden></p>
+          <div><button class="cta" type="submit" id="gBtn" disabled>Uygula</button></div>
+        </form>
+      </section>
+      <section class="sec"><h3>Hesap</h3>
+        <div class="kv">
+          <div><span>Durum</span>${u.registered ? '<span class="tag ok">Kayıtlı</span>' : '<span class="tag">Misafir</span>'}</div>
+          <div><span>Eşi</span>${u.partner ? `<button class="copy" type="button" data-user="${u.partner.id}">${esc(u.partner.name)}</button>` : '—'}</div>
+          <div><span>Katıldı</span>${fullDate(u.createdAt)}</div>
+          <div><span>Son görülme</span>${ago(u.seenAt)}</div>
+          <div><span>Buket</span>${fmt(u.sent)} gönderdi · ${fmt(u.recv)} aldı</div>
+          <div><span>Ödeme</span>${u.paidCount ? `${tl(u.paidTL)} · ${u.paidCount} kez` : '—'}</div>
+          <div><span>Bildirim</span>${u.devices ? `${u.devices} cihazda açık` : 'Kapalı'}</div>
+          <div><span>Seri</span>${u.daily && u.daily.streak ? `${u.daily.streak} gün` : '—'}</div>
+        </div>
+        ${u.unlocked.length ? `<div><span class="small muted" style="font-weight:600">Açtığı premium parçalar</span><div class="chips" style="margin-top:6px">${u.unlocked.map(k => `<span class="tag">${esc(k.split(':')[1])}</span>`).join('')}</div></div>` : ''}
+      </section>
+      <section class="sec"><h3>Altın işlemleri</h3>${j.log.length ? `<div class="list">${j.log.map(l => `<div class="li"><span>${esc(l.reason)}</span><span class="${l.delta > 0 ? 'plus' : 'minus'} num">${l.delta > 0 ? '+' : '−'}${fmt(Math.abs(l.delta))}</span><small>${fullDate(l.at)} · ${fmt(l.before)} → ${fmt(l.after)}</small></div>`).join('')}</div>` : '<p class="small muted" style="margin:0">Panelden yapılmış işlem yok.</p>'}</section>
+      <section class="sec"><h3>Satın almalar</h3>${j.purchases.length ? `<div class="list">${j.purchases.map(p => { const s = STATUS[p.status] || [p.status, '']; return `<div class="li"><span>${fmt(p.gold)} altın · ${tl(p.price)}</span><span class="tag ${s[1]}">${s[0]}</span><small>${fullDate(p.paidAt || p.createdAt)}${p.provider ? ' · ' + esc(p.provider === 'demo' ? 'deneme' : p.provider) : ''}</small></div>`; }).join('')}</div>` : '<p class="small muted" style="margin:0">Satın alma yok.</p>'}</section>
+      <section class="sec"><h3>Son buketler</h3>${j.bouquets.length ? `<div class="list">${j.bouquets.map(b => `<div class="li"><span>${b.dir === 'out' ? '→ ' : '← '}${esc(b.who)} <span class="tag ${b.dir === 'in' ? 'pink' : ''}">${b.dir === 'in' ? 'Gelen' : 'Giden'}</span></span>
+          <span class="small muted num">${b.stems} dal${b.cost ? ` · ${b.cost} altın` : ''}</span>
+          ${b.note ? `<span class="note">“${esc(b.note)}”</span>` : ''}
+          <small>${fullDate(b.createdAt)} · ${esc(b.reason || 'Buket')} · ${!b.delivered ? 'planlı: ' + fullDate(b.deliverAt) : b.openedAt ? 'açıldı' : 'açılmadı'}${b.reaction ? ' · cevap: ' + esc(REACT[b.reaction] || b.reaction) : ''}</small></div>`).join('')}</div>` : '<p class="small muted" style="margin:0">Buket yok.</p>'}</section>
+    </div>`;
+  d.querySelector('[data-close]').onclick = closeDrawer;
+  d.querySelector('#cpId').onclick = () => navigator.clipboard.writeText(u.id).then(() => toast('Kimlik kopyalandı'), () => {});
+  const pb = d.querySelector('[data-user]'); if (pb) pb.onclick = () => openUser(pb.dataset.user);
+  const dIn = d.querySelector('#gDelta'), rIn = d.querySelector('#gReason'), prev = d.querySelector('#gPrev'), btn = d.querySelector('#gBtn'), er = d.querySelector('#gErr');
+  const upd = () => {
+    const n = Number(dIn.value), ok = Number.isInteger(n) && n !== 0 && dIn.value.trim() !== '';
+    const after = u.gold + (ok ? n : 0);
+    prev.innerHTML = ok ? `${esc(u.name)}: ${fmt(u.gold)} → <b class="${n > 0 ? 'plus' : 'minus'}">${fmt(after)}</b> altın${after < 0 ? ' · bakiye eksiye düşemez' : ''}` : '';
+    btn.disabled = !ok || after < 0 || !rIn.value.trim();
+    btn.textContent = ok ? (n > 0 ? `${fmt(n)} altın ekle` : `${fmt(-n)} altın düş`) : 'Uygula';
+  };
+  dIn.oninput = upd; rIn.oninput = upd;
+  d.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { dIn.value = b.dataset.q; upd(); if (!rIn.value) rIn.focus(); });
+  d.querySelector('#goldForm').onsubmit = async ev => {
+    ev.preventDefault(); er.hidden = true;
+    if (btn.disabled) { if (!rIn.value.trim()) { er.textContent = 'Neden yaz; işlem kaydında görünecek.'; er.hidden = false; rIn.focus(); } return; }
+    const delta = Number(dIn.value);
+    btn.disabled = true; btn.textContent = 'Uygulanıyor…';
+    try {
+      const nj = await api(`/users/${u.id}/gold`, { body: { delta, reason: rIn.value.trim(), notify: d.querySelector('#gNotify').checked } });
+      toast(delta > 0 ? `${nj.user.name} hesabına ${fmt(delta)} altın eklendi` : `${nj.user.name} hesabından ${fmt(-delta)} altın düşüldü`);
+      drawUser(nj);
+      const r = UQ.rows.find(x => x.id === u.id); if (r) { r.gold = nj.user.gold; drawUsers(); }
+      loadStats();
+    } catch (e) { er.textContent = e.message; er.hidden = false; upd(); }
+  };
+}
+
+/* ---- purchases */
+let pStatus = 'all';
+async function purchasesPane() {
+  $('pane').innerHTML = `<div style="display:grid;gap:12px"><div class="bar"><div class="seg" role="group" aria-label="Durum">${[['all', 'Tümü'], ['paid', 'Ödendi'], ['pending', 'Bekliyor'], ['failed', 'Başarısız']].map(([v, l]) => `<button type="button" data-s="${v}" aria-pressed="${pStatus === v}">${l}</button>`).join('')}</div></div>
+    <div class="card" id="pcard"><p class="empty">Yükleniyor…</p></div></div>`;
+  document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { pStatus = b.dataset.s; purchasesPane(); });
+  let j; try { j = await api('/purchases?status=' + pStatus); } catch (e) { toast(e.message); return; }
+  $('pcard').innerHTML = j.purchases.length ? `<table class="tbl"><thead><tr><th>Tarih</th><th>Kullanıcı</th><th class="r">Altın</th><th class="r">Tutar</th><th>Durum</th><th class="hide-m">Yöntem</th></tr></thead><tbody>
+    ${j.purchases.map(p => { const s = STATUS[p.status] || [p.status, '']; return `<tr class="click" data-id="${p.userId}"><td class="num" title="${esc(p.id)}">${fullDate(p.paidAt || p.createdAt)}</td>
+      <td><div class="who"><div style="min-width:0"><b>${esc(p.userName)}</b><small>${esc(p.email || p.userId)}</small></div></div></td>
+      <td class="r"><span class="gold">${coin}${fmt(p.gold)}</span></td><td class="r num">${tl(p.price)}</td>
+      <td><span class="tag ${s[1]}" ${p.error ? `title="${esc(p.error)}"` : ''}>${s[0]}</span></td><td class="hide-m">${esc(p.provider === 'demo' ? 'deneme' : p.provider || '—')}</td></tr>`; }).join('')}
+    </tbody></table>` : '<p class="empty">Bu durumda satın alma yok.</p>';
+  $('pcard').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => openUser(tr.dataset.id));
+}
+
+/* ---- gold log */
+async function logPane() {
+  $('pane').innerHTML = '<div class="card" id="lcard"><p class="empty">Yükleniyor…</p></div>';
+  let j; try { j = await api('/log'); } catch (e) { toast(e.message); return; }
+  $('lcard').innerHTML = j.log.length ? `<table class="tbl"><thead><tr><th>Tarih</th><th>Kullanıcı</th><th class="r">Miktar</th><th class="hide-m">Bakiye</th><th>Neden</th></tr></thead><tbody>
+    ${j.log.map(l => `<tr class="click" data-id="${l.userId}"><td class="num">${fullDate(l.at)}</td><td><b>${esc(l.userName)}</b></td>
+      <td class="r num ${l.delta > 0 ? 'plus' : 'minus'}">${l.delta > 0 ? '+' : '−'}${fmt(Math.abs(l.delta))}</td><td class="hide-m num">${fmt(l.before)} → ${fmt(l.after)}</td><td>${esc(l.reason)}</td></tr>`).join('')}
+    </tbody></table>` : '<p class="empty">Henüz panelden altın eklenmedi ya da düşülmedi.</p>';
+  $('lcard').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => openUser(tr.dataset.id));
+}
+
+/* ---- start */
+async function start() {
+  try { await loadStats(); } catch (e) { return; }
+  $('login').hidden = true; $('app').hidden = false;
+  renderTab();
+}
+if (TOKEN) start(); else showLogin();
+</script>
+</body>
+</html>
