@@ -3066,6 +3066,7 @@ function pushHTML(ps) {
   if (ps === 'on') return `<p class="small">Bu cihazda bildirimler açık. Sana buket gelince ya da gönderdiğin buket açılınca haber veririz.</p><button class="btn2" id="testPush" style="justify-self:start">Deneme bildirimi gönder</button>`;
   if (ps === 'off') return `<p class="small">Sana buket gelince ya da gönderdiğin buket açılınca haber verelim.</p><button class="cta" id="onPush" style="justify-self:start">Bildirimleri aç</button>`;
   if (ps === 'denied') return `<p class="small">${NATIVE ? 'Bildirim izni kapalı. Telefonun Ayarlar > Demet > Bildirimler kısmından açabilirsin.' : 'Bildirim izni kapalı. Tarayıcı ya da telefon ayarlarından Demet için bildirimlere izin ver.'}</p>`;
+  if (NATIVE) return '<p class="small">Uygulama bildirimleri bu deneme sürümünde henüz açık değil.</p>';
   if (!window.isSecureContext) return '<p class="small">Bildirimler ve ana ekrana ekleme için site HTTPS üzerinden açılmalı. Sunucuya yükleyince çalışır.</p>';
   return `<p class="small">${isIOS && !isStandalone() ? 'iPhone’da bildirim almak için önce Demet’i ana ekrana ekle, sonra ana ekrandaki simgeden aç.' : 'Bu tarayıcı bildirimleri desteklemiyor.'}</p>`;
 }

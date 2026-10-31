@@ -40,6 +40,8 @@ const applyBars = () => quiet(SystemBars.setStyle({ style: dark.matches ? System
 let messagingOk = null;
 async function messaging() {
   if (messagingOk !== null) return messagingOk;
+  // Firebase ayarlanmamış bir derlemede eklenti hiç yüklenmez; bildirimler o zaman "desteklenmiyor" görünür
+  if (!Capacitor.isPluginAvailable('FirebaseMessaging')) return (messagingOk = false);
   try { messagingOk = (await FirebaseMessaging.isSupported()).isSupported; } catch (e) { messagingOk = false; }
   return messagingOk;
 }

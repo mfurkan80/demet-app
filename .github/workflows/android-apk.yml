@@ -1,0 +1,115 @@
+# Android APK'yı GitHub'ın sunucusunda derler ve "android-beta" sürümüne demet.apk olarak koyar.
+# İndirme linki hep aynı kalır: https://github.com/<kullanıcı>/demet-app/releases/download/android-beta/demet.apk
+#
+# Sunucu adresi ve RevenueCat public anahtarları: mobile/app.config.release.json
+# İsteğe bağlı repo secret'ları (Settings > Secrets and variables > Actions):
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+#     -> verilmezse her derlemede geçici bir imza anahtarı üretilir (güncellemek için eski APK'yı kaldırıp yüklemek gerekir)
+#   GOOGLE_SERVICES_JSON_BASE64 -> Firebase bildirimleri için google-services.json
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['public/**', 'mobile/**', '.github/workflows/android-apk.yml']
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Paketler
+        run: npm ci
+
+      - name: Uygulama ayarları
+        run: cp app.config.release.json app.config.json
+
+      - name: Firebase (varsa)
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GS" ]; then
+            echo "$GS" | base64 -d > android/app/google-services.json; echo "google-services.json eklendi"
+          else
+            # Firebase yokken bildirim eklentisi uygulamayı açılışta düşürür; bu derlemede eklentiyi dışarıda bırak
+            node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('capacitor.config.json'));const d=Object.keys(require('./package.json').dependencies);c.android=c.android||{};c.android.includePlugins=d.filter(n=>!['@capacitor/core','@capacitor/android','@capacitor/ios','@capacitor-firebase/messaging'].includes(n));fs.writeFileSync('capacitor.config.json',JSON.stringify(c,null,2));console.log('eklentiler:',c.android.includePlugins.join(', '))"
+            echo "google-services.json yok, uygulama bildirimleri kapalı"
+          fi
+
+      - name: Web dosyalarını paketle ve Android projesini güncelle
+        run: |
+          node scripts/build-www.mjs
+          npx cap sync android
+          node scripts/configure-native.mjs
+
+      - name: İmza anahtarı
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/demet.jks"
+            echo "KS_PASS=$KS_PASS" >> "$GITHUB_ENV"; echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"; echo "KEY_PASS=$KEY_PASS" >> "$GITHUB_ENV"
+          else
+            keytool -genkeypair -v -keystore "$RUNNER_TEMP/demet.jks" -storepass demetbeta -keypass demetbeta -alias demet \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Demet Beta, O=Demet, C=TR"
+            echo "KS_PASS=demetbeta" >> "$GITHUB_ENV"; echo "KEY_ALIAS=demet" >> "$GITHUB_ENV"; echo "KEY_PASS=demetbeta" >> "$GITHUB_ENV"
+          fi
+
+      - name: APK derle
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon \
+            -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/demet.jks" \
+            -Pandroid.injected.signing.store.password="$KS_PASS" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASS"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/demet.apk"
+          ls -la "$GITHUB_WORKSPACE/demet.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demet-apk
+          path: demet.apk
+
+      - name: İndirme linkini güncelle (android-beta)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-beta
+          target_commitish: ${{ github.sha }}
+          name: Demet Android (deneme sürümü)
+          prerelease: true
+          make_latest: false
+          files: demet.apk
+          body: |
+            Telefonunda bu sayfadan **demet.apk** dosyasını indir ve aç. Android “bilinmeyen kaynaklardan yükleme” izni isterse ver.
+            Sürüm: 1.0.${{ github.run_number }} · ${{ github.sha }}
