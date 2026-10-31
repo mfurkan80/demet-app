@@ -106,7 +106,7 @@ Giriş denemeleri 15 dakikada 8 ile sınırlı; oturum 12 saat geçerli ve sunuc
 | `POST /api/bouquets/:id/react` | alıcının cevabı (`heart`, `thanks`, `love`, `wow`, `note`) |
 | `POST /api/days`, `DELETE /api/days/:id` | özel günler |
 | `POST /api/push`, `DELETE /api/push`, `POST /api/push/test` | bildirim aboneliği |
-| `POST /api/invite` `{kind: 'partner'|'friend'}` | davet linki ve kodu |
+| `POST /api/invite` | davet linki ve kodu (`kind`: `partner` ya da `friend`) |
 | `DELETE /api/friends/:id` | arkadaşlıktan çıkar |
 
 Kimlik doğrulama `Authorization: Bearer <token>` ile. Token tarayıcının localStorage'ında `demet-token` anahtarında durur.
