@@ -3002,7 +3002,7 @@ function showWelcome() {
         <li>${PERK}<span>Gönderdiğiniz her buket bu bahçeye ekilir.</span></li>
       </ul>
       <div class="wbtns"><button class="cta wide" id="wReg" type="button">Hesap oluştur</button><button class="btn2 wide" id="wLog" type="button">Hesabım var, giriş yap</button></div>
-      <button class="linkbtn wguest" id="wGuest" type="button">Önce hesapsız deneyeyim</button>`;
+      <button class="linkbtn wguest" id="wGuest" type="button">Misafir olarak giriş yap</button>`;
     step.querySelector('#wReg').onclick = () => form('register');
     step.querySelector('#wLog').onclick = () => form('login');
     step.querySelector('#wGuest').onclick = () => { try { localStorage.setItem('demet-welcomed', '1'); } catch (e) {} hideWelcome(); };

@@ -19,7 +19,7 @@ Port doluysa: `PORT=3000 npm start`
 ## Neler var
 
 - **Buket stüdyosu**: 16 çiçek, 4 yeşillik, sarma animasyonu, premium kağıt/kurdele/süsler, not kartı
-- **Hesap**: ilk açılışta bahçenin önünde karşılama ekranı çıkar: Hesap oluştur, Giriş yap ya da hesapsız dene. Hesapsız deneyen kişi arka planda misafir hesabıyla çalışır, üst bardaki "Giriş yap" ile istediği an kayıt olur. Var olan hesaba giriş yapınca o cihazda misafirken gönderilen buketler hesaba taşınır (hoş geldin altınıyla açılan parçalar taşınmaz).
+- **Hesap**: ilk açılışta bahçenin önünde karşılama ekranı çıkar: Hesap oluştur, Giriş yap ya da Misafir olarak giriş yap. Misafir olarak giren kişi arka planda misafir hesabıyla çalışır, üst bardaki "Giriş yap" ile istediği an kayıt olur. Var olan hesaba giriş yapınca o cihazda misafirken gönderilen buketler hesaba taşınır (hoş geldin altınıyla açılan parçalar taşınmaz).
 - **Eşleşme**: Hesabım > Davet linki oluştur. Eşin linki açınca ya da 6 haneli kodu girince eşleşirsiniz
 - **Gönderme**: eşine doğrudan (bahçesine düşer + bildirim) ya da link ile (WhatsApp'tan herkese)
 - **Alıcı ekranı**: `/b/<id>` linkini açan kişi hiçbir şey indirmeden zarfı açar, buket gözünün önünde sarılır
