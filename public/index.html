@@ -2351,16 +2351,16 @@ function openShop() {
   const filled = streakNow % 7 === 0 && claimed ? 7 : streakNow % 7;
   const nextReward = ((streakNow % 7) + 1) === 7 ? 50 : 10;
   const packs = (online() && PACKS_SRV) || PACKS;
-  const realPay = online() && PAYMENTS === 'iyzico';
+  const realPay = online() && PAYMENTS === 'iyzico', payOff = online() && PAYMENTS === 'off';
   openSheet(`<h3 id="sheetTitle">Altın</h3>
     <div class="bal">${coin('lg')}<span id="shopBal">${fmt(W.gold)}</span><small>bakiyen</small></div>
     <div class="daily"><div class="h"><div><strong>Günlük hediye</strong><span>${claimed ? 'Bugünkü hediyeni aldın. Yarın tekrar gel.' : `Bugün ${nextReward} altın seni bekliyor.`}</span></div>
       ${claimed ? '' : `<button class="cta" id="claim" data-autofocus style="height:40px">Al</button>`}</div>
       <div class="days" aria-label="7 günlük seri">${Array.from({ length: 7 }, (_, i) => `<i class="${i < filled ? 'done' : ''} ${i === 6 ? 'big' : ''}">${i === 6 ? '+50' : '+10'}</i>`).join('')}</div></div>
-    <div class="packs">${packs.map((p, i) => `<button class="pack ${p.best ? 'best' : ''}" data-pack="${i}" id="pack-${i}">${p.best ? '<span class="flag">En çok alınan</span>' : ''}
-      <span class="amt">${coin()}${fmt(p.gold + p.bonus)}</span><span class="bonus">${p.bonus ? `${fmt(p.gold)} + ${p.bonus} hediye` : ''}</span><span class="price">${tl(p.price)}</span></button>`).join('')}</div>
+    ${payOff ? `<div class="tip">Altın satışı yakında açılacak. Deneme süresince altınlar hediye olarak hesabına yükleniyor; günlük hediyeni de almayı unutma.</div>` : `<div class="packs">${packs.map((p, i) => `<button class="pack ${p.best ? 'best' : ''}" data-pack="${i}" id="pack-${i}">${p.best ? '<span class="flag">En çok alınan</span>' : ''}
+      <span class="amt">${coin()}${fmt(p.gold + p.bonus)}</span><span class="bonus">${p.bonus ? `${fmt(p.gold)} + ${p.bonus} hediye` : ''}</span><span class="price">${tl(p.price)}</span></button>`).join('')}</div>`}
     <ul class="uses"><li>Premium çiçekler dal başına altınla gönderilir</li><li>Kadife, altın kenarlı kağıtlar ve özel süslerin kilidi bir kez açılır</li><li>Temel çiçekler ve mat kağıt her zaman ücretsiz</li></ul>
-    <p class="small">${realPay ? 'Ödemeler iyzico güvencesiyle alınır. Fiyatlara KDV dahildir.' : 'Bu bir prototip. Ödeme altyapısı bağlanana kadar paketler deneme amaçlıdır, kartından para çekilmez.'}</p>`, sh => {
+    ${payOff ? '' : `<p class="small">${realPay ? 'Ödemeler iyzico güvencesiyle alınır. Fiyatlara KDV dahildir.' : 'Bu bir prototip. Ödeme altyapısı bağlanana kadar paketler deneme amaçlıdır, kartından para çekilmez.'}</p>`}`, sh => {
     const c = sh.querySelector('#claim');
     if (c) c.onclick = async () => {
       if (online()) {
