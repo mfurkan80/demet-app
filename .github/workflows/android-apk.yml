@@ -23,28 +23,52 @@ permissions:
 
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: mobile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
+      # Hata olursa son satırları açıklama (annotation) olarak yazar; böylece günlük indirilmeden görülebilir
+      - name: Yardımcı
+        working-directory: .
+        run: |
+          cat > "$RUNNER_TEMP/run.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -o pipefail
+          log="$RUNNER_TEMP/step.log"
+          if ! bash -c "$1" 2>&1 | tee "$log"; then
+            msg=$(tail -n 50 "$log" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Derleme hatası::$msg"
+            exit 1
+          fi
+          SH
+          chmod +x "$RUNNER_TEMP/run.sh"
+
+      - name: Android SDK
+        run: |
+          "$RUNNER_TEMP/run.sh" '
+            SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"; echo "SDK=$SDK"
+            SM=$(ls -d "$SDK"/cmdline-tools/*/bin/sdkmanager | sort | tail -1); echo "sdkmanager=$SM"
+            yes | "$SM" --licenses > /dev/null || true
+            "$SM" "platforms;android-36" "build-tools;36.0.0" "platform-tools" > /dev/null
+            echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"; echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          '
 
       - name: Paketler
-        run: npm ci
+        run: '"$RUNNER_TEMP/run.sh" "npm ci"'
 
       - name: Uygulama ayarları
         run: cp app.config.release.json app.config.json
@@ -62,10 +86,7 @@ jobs:
           fi
 
       - name: Web dosyalarını paketle ve Android projesini güncelle
-        run: |
-          node scripts/build-www.mjs
-          npx cap sync android
-          node scripts/configure-native.mjs
+        run: '"$RUNNER_TEMP/run.sh" "node scripts/build-www.mjs && npx cap sync android && node scripts/configure-native.mjs"'
 
       - name: İmza anahtarı
         env:
@@ -87,12 +108,12 @@ jobs:
         working-directory: mobile/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon \
-            -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" \
-            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/demet.jks" \
-            -Pandroid.injected.signing.store.password="$KS_PASS" \
-            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$KEY_PASS"
+          "$RUNNER_TEMP/run.sh" "./gradlew assembleRelease --no-daemon --console=plain \
+            -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }} \
+            -Pandroid.injected.signing.store.file=$RUNNER_TEMP/demet.jks \
+            -Pandroid.injected.signing.store.password=$KS_PASS \
+            -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$KEY_PASS"
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/demet.apk"
           ls -la "$GITHUB_WORKSPACE/demet.apk"
 
