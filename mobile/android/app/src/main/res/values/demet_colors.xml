@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="demet_accent">#B5244D</color>
+    <color name="demet_bg">#FBFCFA</color>
 </resources>

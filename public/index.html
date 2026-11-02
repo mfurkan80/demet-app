@@ -14,7 +14,7 @@
 <meta name="apple-mobile-web-app-title" content="Demet">
 <meta name="description" content="Sevdiğine 3D buket yap ve gönder. Gelen buketler ortak bahçenizde büyüsün.">
 <!--OG-->
-<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style>
+<style>body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Demet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,6 +24,7 @@
    workbench panel holds the steps (bottom sheet on phones, right rail on desktop).
    The same frame swaps between the studio and the couple's shared garden. */
 :root {
+  --top: max(14px, calc(env(safe-area-inset-top, 0px) + 6px));
   --mist: #E6EEE8;
   --blush: #F7E5EB;
   --sky-1: #E9F1EA;
@@ -65,6 +66,11 @@
   --scrim: rgba(0, 0, 0, .58); color-scheme: dark;
 }
 html, body { height: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* uygulamada: uzun basınca metin seçilmesin, menü çıkmasın; sayfa esnemesin */
+html.native body { overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html.native input, html.native textarea, html.native [contenteditable], html.native .msg, html.native .selectable { -webkit-user-select: text; user-select: text; }
+html.native img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 body {
   background: var(--surface); color: var(--ink); font-family: var(--font-body); font-size: 15px;
   line-height: 1.45; overflow: hidden; -webkit-tap-highlight-color: transparent;
@@ -90,7 +96,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .topbar {
   position: absolute; inset: 0 0 auto; z-index: 3; display: flex; align-items: flex-start;
   justify-content: space-between; gap: 10px; pointer-events: none;
-  padding-top: max(14px, env(safe-area-inset-top, 0px));
+  padding-top: var(--top);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
@@ -146,12 +152,12 @@ button { cursor: pointer; touch-action: manipulation; }
 
 .notif {
   position: absolute; z-index: 6; left: 50%; top: max(12px, env(safe-area-inset-top, 0px)); width: min(calc(100% - 24px), 420px);
-  transform: translate(-50%, -150%); transition: transform .6s cubic-bezier(.2,.9,.25,1.15);
+  transform: translate(-50%, calc(-100% - 80px)); visibility: hidden; transition: transform .6s cubic-bezier(.2,.9,.25,1.15), visibility 0s linear .6s;
   background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(14px);
   border-radius: 18px; padding: 12px 14px; display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 2px 12px;
   box-shadow: 0 16px 40px -18px rgba(0,0,0,.45);
 }
-.notif.show { transform: translate(-50%, 0); }
+.notif.show { transform: translate(-50%, 0); visibility: visible; transition: transform .6s cubic-bezier(.2,.9,.25,1.15), visibility 0s; }
 .notif .ic { grid-row: span 3; width: 40px; height: 40px; border-radius: 11px; background: var(--accent); display: grid; place-items: center; color: var(--accent-ink); font-family: var(--font-display); font-weight: 800; font-size: 20px; }
 .notif .t1 { font-size: 12.5px; color: var(--ink-2); display: flex; justify-content: space-between; }
 .notif .t2 { font-weight: 700; }
@@ -180,6 +186,10 @@ button { cursor: pointer; touch-action: manipulation; }
 }
 .tab[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
 .tab .n { font-size: 12px; font-variant-numeric: tabular-nums; opacity: .75; }
+@media (max-width: 420px) {
+  .tabs { gap: 5px; }
+  .tab { padding: 7px 11px; font-size: 13.5px; }
+}
 .pane {
   overflow-y: auto; min-height: 0; overscroll-behavior: contain;
   padding-block: 2px 14px;
@@ -227,13 +237,14 @@ button { cursor: pointer; touch-action: manipulation; }
 .fcard .pr { font-size: 12px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; min-height: 15px; }
 .fcard .pr.prem { color: var(--gold); font-weight: 700; }
 .fcard .cnt {
-  position: absolute; top: -6px; right: -6px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px;
+  position: absolute; top: 6px; right: 6px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; box-sizing: border-box;
   background: var(--ink); color: var(--surface); font-weight: 700; font-size: 13px; display: grid; place-items: center;
-  font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface); pointer-events: none;
+  font-variant-numeric: tabular-nums; pointer-events: none;
 }
 .fcard .minus {
-  position: absolute; top: -6px; left: -6px; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line);
-  background: var(--surface); display: grid; place-items: center; padding: 0; font-size: 16px; line-height: 1; box-shadow: 0 0 0 2px var(--surface);
+  position: absolute; top: 5px; left: 5px; width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--line);
+  background: var(--surface); display: grid; place-items: center; padding: 0; font-size: 17px; line-height: 1; color: var(--ink);
+  box-shadow: 0 2px 6px -2px rgba(0,0,0,.18);
 }
 
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -296,6 +307,8 @@ button { cursor: pointer; touch-action: manipulation; }
 }
 .field textarea.hand, .field input.hand { font-family: var(--font-hand); font-size: 24px; line-height: 1.2; }
 .field textarea.hand { min-height: 92px; }
+/* telefonda yazı kutuları 16px: iPhone odaklanınca sayfayı büyütmesin */
+@media (pointer: coarse) { html input:not(.hand), html textarea:not(.hand), html select { font-size: 16px; } }
 .count { font-size: 12.5px; color: var(--ink-2); text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ---------- garden ---------- */
@@ -347,7 +360,7 @@ button { cursor: pointer; touch-action: manipulation; }
 }
 .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); justify-self: center; }
 @media (min-width: 700px) { .grab { display: none; } }
-.sheet h3 { margin: 0; font-family: var(--font-display); font-size: 24px; letter-spacing: -0.02em; line-height: 1.1; text-wrap: balance; }
+.sheet h3 { margin: 0; font-family: var(--font-display); font-size: 24px; letter-spacing: -0.02em; line-height: 1.1; text-wrap: balance; padding-right: 40px; }
 .sheet .sub { margin: -6px 0 0; color: var(--ink-2); font-size: 14px; }
 .sheet .x { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--surface-2); display: grid; place-items: center; font-size: 20px; line-height: 1; }
 .bal { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 34px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
@@ -384,6 +397,12 @@ button { cursor: pointer; touch-action: manipulation; }
 .hand-note { font-family: var(--font-hand); font-size: 28px; line-height: 1.15; margin: 0; }
 .sheet .acts { display: flex; gap: 10px; flex-wrap: wrap; }
 .sheet .acts .cta, .sheet .acts .btn2 { flex: 1; justify-content: center; }
+/* telefonda uzun pencerelerde ana düğme hep altta görünsün */
+@media (max-width: 699px) {
+  .sheet:has(> .acts:last-child) { padding-bottom: 0; }
+  .sheet > .acts:last-child { position: sticky; bottom: 0; z-index: 3; background: var(--surface); padding-block: 8px calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .sheet > .acts:last-child::before { content: ""; position: absolute; left: 0; right: 0; top: -18px; height: 18px; background: linear-gradient(color-mix(in srgb, var(--surface) 0%, transparent), var(--surface)); pointer-events: none; }
+}
 .unl { display: grid; grid-template-columns: 72px minmax(0,1fr); gap: 14px; align-items: center; }
 .unl .ico { width: 72px; height: 72px; border-radius: 18px; background: var(--surface-2); display: grid; place-items: center; overflow: hidden; }
 .unl .ico img { width: 72px; height: 72px; }
@@ -391,6 +410,7 @@ button { cursor: pointer; touch-action: manipulation; }
 /* ---------- account ---------- */
 .av-btn { width: 38px; padding: 0; justify-content: center; font-family: var(--font-display); font-weight: 800; font-size: 16px; }
 @media (max-width: 400px) { .pill .lbl { display: none; } #navBtn { width: 38px; padding: 0; justify-content: center; } }
+@media (max-width: 400px) { .topbar { gap: 8px; } .actions { gap: 6px; } .pill.gold { padding: 0 11px 0 8px; } .pill.av-btn.guest { padding: 0 12px; font-size: 13.5px; } .brand p { font-size: 12.5px; white-space: nowrap; } }
 .acc { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
 .acc h4 { margin: 0; font-size: 15px; }
 .pair { display: grid; grid-template-columns: 44px minmax(0,1fr); gap: 12px; align-items: center; }
@@ -404,7 +424,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .choice input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--accent); }
 .choice small { display: block; color: var(--ink-2); font-size: 13px; }
 .inbox {
-  position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); top: calc(max(14px, env(safe-area-inset-top, 0px)) + 54px);
+  position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); top: calc(var(--top) + 54px);
   display: inline-flex; align-items: center; gap: 8px; border: 1.5px solid color-mix(in srgb, var(--accent) 35%, transparent);
   background: var(--accent-soft); color: var(--ink); border-radius: 999px; padding: 8px 14px; font-weight: 600; font-size: 14px; max-width: calc(100% - 32px);
   box-shadow: 0 10px 24px -14px var(--accent); white-space: nowrap;
@@ -430,7 +450,9 @@ button { cursor: pointer; touch-action: manipulation; }
 .day-row small { color: var(--ink-2); font-size: 13px; }
 .day-row .left { font-size: 12.5px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .day-row button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); font-size: 16px; line-height: 1; padding: 0; }
-.dayform { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dayform { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.dayform select { grid-column: 1 / -1; }
+.dayform .btn2 { height: auto; min-height: 44px; }
 .dayform select, .dayform input { border: 1.5px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); padding: 10px 12px; min-width: 0; width: 100%; box-sizing: border-box; font: inherit; color: var(--ink); }
 .dayform .wide { grid-column: 1 / -1; }
 .when-in { border: 1.5px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); padding: 10px 12px; font: inherit; color: var(--ink); width: 100%; box-sizing: border-box; }
@@ -509,7 +531,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .frow .rm { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); font-size: 16px; line-height: 1; padding: 0; color: var(--ink-2); }
 .acc .acts { margin-top: 2px; }
 .gswitch {
-  position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); top: calc(max(14px, env(safe-area-inset-top, 0px)) + 56px);
+  position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); top: calc(var(--top) + 56px);
   display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 80%, transparent);
   backdrop-filter: blur(12px); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); box-shadow: 0 10px 30px -18px rgba(0,0,0,.45);
 }
@@ -517,6 +539,7 @@ button { cursor: pointer; touch-action: manipulation; }
 .gswitch button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
 .gswitch svg { width: 15px; height: 15px; }
 @media (min-width: 900px) { .gswitch { top: 18px; } }
+@media (max-width: 899px) { .stage.garden .brand p { display: none; } .stage.garden .brand h1 { font-size: 28px; } }
 .app.welcoming .gswitch { opacity: 0; pointer-events: none; }
 .invite-card { border-radius: var(--r-md); padding: 16px; background: var(--accent-soft); border: 1.5px solid color-mix(in srgb, var(--accent) 28%, transparent); display: grid; gap: 10px; }
 .invite-card strong { font-family: var(--font-display); font-size: 19px; line-height: 1.15; letter-spacing: -0.01em; }
@@ -526,8 +549,9 @@ button { cursor: pointer; touch-action: manipulation; }
 /* ---------- received bouquet ---------- */
 .gift { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding-inline: max(16px, env(safe-area-inset-left, 0px)); transition: opacity .45s ease, transform .45s ease; }
 .gift.out { opacity: 0; transform: scale(.94); pointer-events: none; }
+@media (max-width: 899px) { .app.sealed .panel { height: auto; } .gift { padding-top: calc(var(--top) + 40px); } }
 .env {
-  width: min(100%, 340px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  width: min(100%, 340px); box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
   padding: 34px 22px 22px; text-align: center; display: grid; gap: 8px; position: relative;
   box-shadow: 0 30px 60px -30px rgba(80, 10, 35, .55);
 }
@@ -644,6 +668,7 @@ const CFG = window.DEMET || {};
 const API = (CFG.api || '').replace(/\/+$/, '');
 const WEB = (CFG.web || API || location.origin).replace(/\/+$/, '');
 const NATIVE = window.DemetNative && window.DemetNative.isNative ? window.DemetNative : null;
+if (NATIVE) document.documentElement.classList.add('native', 'native-' + NATIVE.platform);
 const apiUrl = p => API + p;
 function haptic(kind) { if (NATIVE) NATIVE.haptic(kind); else { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} } }
 function openExternal(url) { if (NATIVE) NATIVE.openUrl(url); else window.open(url, '_blank', 'noopener'); }
@@ -811,7 +836,7 @@ const scene = new THREE.Scene(); scene.environment = envTex;
 const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 30);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0.56, 0);
-Object.assign(controls, { enableDamping: true, dampingFactor: 0.08, enablePan: false, minDistance: 1.2, maxDistance: 4.6, minPolarAngle: 0.35, maxPolarAngle: 1.65, rotateSpeed: 0.7, autoRotate: !reduceMotion, autoRotateSpeed: 0.55 });
+Object.assign(controls, { enableDamping: true, dampingFactor: 0.08, enablePan: false, minDistance: 1.2, maxDistance: 6, minPolarAngle: 0.35, maxPolarAngle: 1.65, rotateSpeed: 0.7, autoRotate: !reduceMotion, autoRotateSpeed: 0.55 });
 let userMoved = false, idleTimer;
 controls.addEventListener('start', () => { controls.autoRotate = false; userMoved = true; clearTimeout(idleTimer); hideHint(); });
 controls.addEventListener('end', () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => { controls.autoRotate = !reduceMotion; }, 5000); });
@@ -1882,25 +1907,36 @@ renderer.domElement.addEventListener('pointerup', e => {
 });
 
 /* ======================================================================= camera fit + loop */
+// telefonda buket üst çubuğun (ad, altın, düğmeler) altında kalmasın: görüntüyü biraz aşağı kaydır ve sığdır
+let camFrac = 1;
+function studioFrame() {
+  const r = stage.getBoundingClientRect(), tb = document.querySelector('.topbar');
+  if (r.width < 900 && r.height > 0 && tb) {
+    const top = Math.max(0, tb.getBoundingClientRect().bottom - r.top) * 0.6, bot = 18;
+    camFrac = Math.max(0.62, (r.height - top - bot) / r.height);
+    camera.setViewOffset(r.width, r.height, 0, -(top - bot) / 2, r.width, r.height);
+  } else { camFrac = 1; camera.clearViewOffset(); }
+}
 function resize() {
   const r = stage.getBoundingClientRect();
   renderer.setSize(r.width, r.height, false);
   for (const c of [camera, gCam]) { c.aspect = r.width / Math.max(1, r.height); c.updateProjectionMatrix(); }
-  welcomeFrame();
+  studioFrame(); welcomeFrame();
 }
 // while the welcome card covers part of the screen, slide the garden into the free area
 function welcomeFrame() {
   const r = stage.getBoundingClientRect(), w = r.width, h = r.height;
   if (typeof welcomeOpen !== 'undefined' && welcomeOpen && w && h) {
     if (w >= 900) gCam.setViewOffset(w, h, w * 0.2, 0, w, h); else gCam.setViewOffset(w, h, 0, h * 0.2, w, h);
-  } else gCam.clearViewOffset();
+  } else if (w && h && w < 900) gCam.setViewOffset(w, h, 0, -Math.min(30, h * 0.05), w, h);
+  else gCam.clearViewOffset();
 }
 new ResizeObserver(() => { resize(); if (!userMoved) placeCamera(); }).observe(stage);
-function fitDist(aspect = camera.aspect, fov = camera.fov) {
+function fitDist(aspect = camera.aspect, fov = camera.fov, frac = camFrac) {
   const v = 2 * Math.tan(THREE.MathUtils.degToRad(fov / 2));
   const half = Math.max(S.wrapped ? 0.42 * wrapScaleT : 0.2, 0.16 + 0.82 * Math.sin(theta)) + 0.06;
   const tall = 1.38 + Math.max(0, Math.sin(theta) - 0.35) * 0.5;
-  return Math.min(4.4, Math.max(tall / v, (half * 2) / (v * aspect)));
+  return Math.min(4.4, Math.max(tall / v, (half * 2) / (v * aspect))) / frac;
 }
 function placeCamera() { const d = fitDist(); camera.position.set(0, 0.56 + d * 0.42, d * 0.9); controls.update(); }
 function placeGardenCam() {
@@ -2078,7 +2114,7 @@ function snapshot() {
   const cam = new THREE.PerspectiveCamera(30, w / h, 0.05, 30);
   cam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(15)) * h / side));
   cam.aspect = w / h; cam.updateProjectionMatrix();
-  const d = fitDist(1, 30) * 1.04, a = 0.45;
+  const d = fitDist(1, 30, 1) * 1.04, a = 0.45;
   cam.position.set(Math.sin(a) * d * 0.9, 0.56 + d * 0.36, Math.cos(a) * d * 0.9); cam.lookAt(0, 0.6, 0);
   renderer.render(scene, cam);
   const out = document.createElement('canvas'), N = 360; out.width = out.height = N;
@@ -2793,7 +2829,7 @@ async function startViewing(id) {
       return true;
     };
     if (tickLock()) { const iv = setInterval(() => { if (!tickLock()) clearInterval(iv); }, 1000); }
-    $('gift').hidden = false; renderAll();
+    $('gift').hidden = false; $('app').classList.add('sealed'); renderAll();
     return;
   }
   d.items = (d.items || []).filter(i => ALL[i.type]);
@@ -2805,14 +2841,14 @@ async function startViewing(id) {
   sync3D();
   $('giftSeal').textContent = (d.sign || 'D').trim().charAt(0).toLocaleUpperCase('tr');
   $('giftFrom').textContent = d.mine ? 'Gönderdiğin buket' : d.sign ? `${fromName(d.sign)} sana` : 'Sana';
-  $('gift').hidden = false;
+  $('gift').hidden = false; $('app').classList.add('sealed');
   renderAll();
   $('openGift').focus({ preventScroll: true });
 }
 $('openGift').addEventListener('click', async () => {
   if (!viewing || viewing.opened) return;
   const g = $('gift'); g.classList.add('out'); setTimeout(() => { g.hidden = true; }, 450);
-  viewing.opened = true; renderAll();
+  $('app').classList.remove('sealed'); viewing.opened = true; renderAll();
   const wait = ms => new Promise(r => setTimeout(r, reduceMotion ? 0 : ms));
   const d = viewing.data;
   await wait(250);
@@ -2888,7 +2924,7 @@ function storyBg(Wd, Hd) {
 function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function drawStoryFrame(p) {
   const s = story, a = p * Math.PI * 2 + 0.35;
-  const d = fitDist(s.W / (s.H * 0.62), 30) * 1.22;
+  const d = fitDist(s.W / (s.H * 0.62), 30, 1) * 1.22;
   s.cam.position.set(Math.sin(a) * d * 0.92, 0.58 + d * 0.3, Math.cos(a) * d * 0.92);
   s.cam.lookAt(0, 0.36, 0);
   realRender(scene, s.cam);
@@ -3111,9 +3147,9 @@ function daysHTML() {
     : '<p class="small">Doğum gününü ve yıldönümünüzü ekle. Üç gün önce, bir gün önce ve günü gelince haber verelim.</p>'}</div>
     <form class="dayform" id="dayForm" novalidate>
       <select id="dayType" aria-label="Gün türü"><option value="partner_birthday">${ME && ME.partner ? esc(genitive(ME.partner.name)) : 'Sevgilimin'} doğum günü</option><option value="anniversary">Yıldönümümüz</option><option value="custom">Başka bir gün</option></select>
-      <input id="dayDate" type="date" aria-label="Tarih" required>
       <input id="dayLabel" class="wide" maxlength="40" placeholder="Günün adı, örneğin İlk buluşma…" autocomplete="off" hidden>
-      <button class="btn2 wide" type="submit">Özel gün ekle</button>
+      <input id="dayDate" type="date" aria-label="Tarih" required>
+      <button class="btn2" type="submit">Ekle</button>
     </form>`;
 }
 function bindDays(sh) {

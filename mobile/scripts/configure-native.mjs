@@ -36,24 +36,37 @@ if (fs.existsSync(andr)) {
   // Firebase bildirim ayarları: önce eski kayıtları (biçimi ne olursa olsun) kaldır, sonra tek blok olarak ekle
   m = m.replace(/\n\s*<!-- demet:fcm -->[\s\S]*?<!-- \/demet:fcm -->/, '');
   m = m.replace(/\s*<meta-data\s+android:name="com\.google\.firebase\.messaging\.default_notification_[a-z_]+"[^>]*?\/>/g, '');
-  m = m.replace(/(\s*)<provider/, `
+  m = m.replace(/\s*<provider/, `
+
         <!-- demet:fcm -->
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="demet" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_demet" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/demet_accent" />
         <!-- /demet:fcm -->
-$1<provider`);
+
+        <provider`);
   if (!m.includes('android:screenOrientation')) m = m.replace(/android:name="\.MainActivity"/, 'android:name=".MainActivity"\n            android:screenOrientation="portrait"\n            android:windowSoftInputMode="adjustResize"');
   if (!m.includes('POST_NOTIFICATIONS')) m = m.replace(/<uses-permission android:name="android\.permission\.INTERNET"\s*\/>/, '<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.VIBRATE" />');
   write(mf, m);
 
-  const colors = path.join(andr, 'res', 'values', 'demet_colors.xml');
-  write(colors, `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="demet_accent">#B5244D</color>\n</resources>\n`);
+  // renkler: açık ve koyu tema (durum çubuğunun arkası, açılışta görünen zemin)
+  const colorsXml = (bg, accent) => `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="demet_accent">${accent}</color>\n    <color name="demet_bg">${bg}</color>\n</resources>\n`;
+  write(path.join(andr, 'res', 'values', 'demet_colors.xml'), colorsXml('#FBFCFA', '#B5244D'));
+  fs.mkdirSync(path.join(andr, 'res', 'values-night'), { recursive: true });
+  write(path.join(andr, 'res', 'values-night', 'demet_colors.xml'), colorsXml('#161F1A', '#F0728F'));
+
+  // uygulama teması: pencere zemini uygulamanın zemin rengi olsun (sistem çubuklarının arkası beyaz/gri kalmasın)
+  const stylesF = path.join(andr, 'res', 'values', 'styles.xml');
+  let st = read(stylesF);
+  st = st.replace(/\s*<item name="android:windowBackground">@color\/demet_bg<\/item>/g, '');
+  st = st.replace(/(<style name="AppTheme\.NoActionBar"[^>]*>)/, '$1\n        <item name="android:windowBackground">@color/demet_bg</item>');
+  write(stylesF, st);
 
   const act = path.join(andr, 'java', ...appId.split('.'), 'MainActivity.java');
   write(act, `package ${appId};
 
 import android.os.Bundle;
+import android.webkit.WebSettings;
 import androidx.activity.EdgeToEdge;
 import com.getcapacitor.BridgeActivity;
 
@@ -62,6 +75,13 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
+        // Telefonda yazı boyutu çok büyütülmüşse ekranlar taşmasın: sistem ayarını %90-%110 aralığında uygula
+        if (bridge != null && bridge.getWebView() != null) {
+            WebSettings ws = bridge.getWebView().getSettings();
+            float scale = getResources().getConfiguration().fontScale;
+            ws.setTextZoom(Math.round(Math.max(0.9f, Math.min(1.1f, scale)) * 100));
+            bridge.getWebView().setOverScrollMode(android.view.View.OVER_SCROLL_NEVER);
+        }
     }
 }
 `);
