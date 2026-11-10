@@ -819,8 +819,19 @@ function cost() {
 
 /* ======================================================================= renderer + scenes */
 const stage = document.getElementById('stage');
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// Studio quality steps (0 best .. 3 lightest). A slow phone steps down by itself while the bouquet is on screen,
+// and the step is remembered for the next launch (forgotten after two weeks in case it was a one-off).
+const SQ_KEY = 'demet-q', SQ_DPR = [2, 1.5, 1.25, 1];
+const sQ = (() => {
+  let tier = 0;
+  // a phone with little memory or few cores starts one step down
+  if (matchMedia('(pointer: coarse)').matches && ((navigator.deviceMemory || 8) <= 3 || (navigator.hardwareConcurrency || 8) <= 4)) tier = 1;
+  try { const v = JSON.parse(localStorage.getItem(SQ_KEY) || 'null'); if (v && Date.now() - v.at < 14 * 864e5) tier = Math.min(3, Math.max(0, v.tier | 0)); } catch (e) {}
+  return { tier, frames: [], skip: 120 };
+})();
+let LITE = sQ.tier >= 3;
+const renderer = new THREE.WebGLRenderer({ antialias: sQ.tier < 2, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, SQ_DPR[sQ.tier]));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.shadowMap.enabled = true;
@@ -842,7 +853,7 @@ controls.addEventListener('start', () => { controls.autoRotate = false; userMove
 controls.addEventListener('end', () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => { controls.autoRotate = !reduceMotion; }, 5000); });
 const hemi = new THREE.HemisphereLight('#fff6f1', '#d6e4da', 0.5);
 const key = new THREE.DirectionalLight('#fff1e4', 2.0);
-key.position.set(0.9, 4.2, 2.2); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+key.position.set(0.9, 4.2, 2.2); key.castShadow = true; key.shadow.mapSize.setScalar(sQ.tier >= 2 ? 512 : 1024);
 Object.assign(key.shadow.camera, { left: -1.1, right: 1.1, top: 1.5, bottom: -0.6, near: 0.5, far: 7 });
 key.shadow.bias = -0.0004; key.shadow.normalBias = 0.025;
 const rim = new THREE.DirectionalLight('#ffd3de', 1.1); rim.position.set(-2.2, 1.6, -2.4);
@@ -887,7 +898,7 @@ const matCache = new Map();
 const white = new THREE.Color('#ffffff');
 function mat(part, type, hex) {
   const k = part + '|' + type + '|' + hex;
-  if (matCache.has(k)) return matCache.get(k);
+  if (matCache.has(k)) return LITE ? liteMat(matCache.get(k)) : matCache.get(k);
   const c = new THREE.Color(hex), D = THREE.DoubleSide, light = c.clone().lerp(white, 0.55);
   let m;
   if (part === 'petal' && type === 'rose_gold') {
@@ -920,7 +931,20 @@ function mat(part, type, hex) {
   }
   m.name = part;
   matCache.set(k, m);
-  return m;
+  return LITE ? liteMat(m) : m;
+}
+// lightest step: physical materials (sheen, clearcoat, iridescence) become plain standard ones
+function liteMat(m) {
+  if (Array.isArray(m)) return m.map(liteMat);
+  if (!m || !m.isMeshPhysicalMaterial) return m;
+  const liteCache = liteMat.cache || (liteMat.cache = new WeakMap());
+  let l = liteCache.get(m);
+  if (!l) {
+    l = new THREE.MeshStandardMaterial({ color: m.color, roughness: m.roughness, metalness: m.metalness, map: m.map, side: m.side,
+      vertexColors: m.vertexColors, envMapIntensity: m.envMapIntensity, transparent: m.transparent, opacity: m.opacity, depthWrite: m.depthWrite });
+    l.name = m.name; liteCache.set(m, l);
+  }
+  return l;
 }
 function partColor(part, type, hex) {
   switch (part) {
@@ -966,7 +990,7 @@ function canvasTex(keyName, w, h, draw, srgb = true) {
 const NEWS_WORDS = 'çiçek bahar sevgi demet şehir haber gün akşam bulvar sahil kahve mektup yıldız deniz bahçe yaprak hafta sabah ışık meydan rüzgar yağmur pazar'.split(' ');
 function paperMat(style, hex) {
   const k = 'paper:' + style + hex;
-  if (matCache.has(k)) return matCache.get(k);
+  if (matCache.has(k)) return LITE ? liteMat(matCache.get(k)) : matCache.get(k);
   const c = new THREE.Color(hex), D = THREE.DoubleSide;
   let m;
   if (style === 'velvet') {
@@ -1003,7 +1027,7 @@ function paperMat(style, hex) {
   } else m = mat('paper', '', hex);
   m.name = 'paper';
   matCache.set(k, m);
-  return m;
+  return LITE ? liteMat(m) : m;
 }
 
 /* ======================================================================= loading */
@@ -1048,6 +1072,7 @@ function applyNode(n) {
   n.inner.position.y = -TIE + n.cur.lift; n.az.scale.setScalar(Math.max(0.001, n.cur.s));
 }
 function angLerp(a, b, k) { let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI; if (d < -Math.PI) d += Math.PI * 2; return a + d * k; }
+function angDiff(a, b) { let d = ((a - b + Math.PI) % (Math.PI * 2)) - Math.PI; if (d < -Math.PI) d += Math.PI * 2; return d; }
 
 let theta = 0.12, wrapScale = 0.8, wrapScaleT = 0.8;
 function layout() {
@@ -1286,10 +1311,15 @@ const glowTex = (() => {
 })();
 const lightsGroup = new THREE.Group(); bouquet.add(lightsGroup);
 let bulbs = [], lightsTheta = -1;
+function disposeLights() {
+  lightsGroup.traverse(o => { if (o.isMesh && o.geometry !== bulbGeo) o.geometry.dispose(); if (o.isSprite || (o.isMesh && o.material !== bulbMat)) o.material.dispose(); });
+  lightsGroup.clear();
+}
+const bulbGeo = new THREE.SphereGeometry(0.0065, 10, 8), bulbMat = new THREE.MeshBasicMaterial({ color: '#FFE2A8' });
 function buildLights() {
-  if (!S.d.lights || !S.items.length) { lightsGroup.clear(); bulbs = []; lightsTheta = -1; return; }
+  if (!S.d.lights || !S.items.length) { disposeLights(); bulbs = []; lightsTheta = -1; return; }
   if (Math.abs(lightsTheta - theta) < 0.01 && lightsGroup.children.length) return;
-  lightsTheta = theta; lightsGroup.clear(); bulbs = [];
+  lightsTheta = theta; disposeLights(); bulbs = [];
   const pts = [];
   for (let i = 0; i <= 90; i++) {
     const t = i / 90, y = 0.55 + t * 0.42, ang = t * 2.6 * Math.PI * 2;
@@ -1298,7 +1328,6 @@ function buildLights() {
   }
   const curve = new THREE.CatmullRomCurve3(pts);
   lightsGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 240, 0.0016, 4), new THREE.MeshStandardMaterial({ color: '#9C8452', roughness: 0.4, metalness: 0.6 })));
-  const bulbGeo = new THREE.SphereGeometry(0.0065, 10, 8), bulbMat = new THREE.MeshBasicMaterial({ color: '#FFE2A8' });
   for (let i = 0; i < 30; i++) {
     const p = curve.getPointAt((i + 0.5) / 30), b = new THREE.Mesh(bulbGeo, bulbMat); b.position.copy(p);
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
@@ -1325,6 +1354,23 @@ function burst(at) {
   }
 }
 
+// Compile every flower, wrap and decor shader while the loading screen is still up, so the first rose, the first
+// sunflower or the first wrap does not freeze the screen for a moment on a phone.
+async function warmShaders() {
+  const g = new THREE.Group(), add = (m, type, hex, extra) => { paint(m, type, hex, extra); g.add(m); };
+  for (const [type, f] of Object.entries(ALL)) if (T[modelOf(type)]) add(T[modelOf(type)].clone(true), type, f.colors[0][1]);
+  if (T.heart) add(T.heart.clone(true), 'heart', '#C8325A', { heart: '#C8325A' });
+  if (T.choco) add(T.choco.clone(true), 'choco', '#D9A441');
+  if (T.butterfly) add(T.butterfly.clone(true), 'butterfly', '#F2A1B8', { wing: '#F2A1B8' });
+  if (T.card) { const c = T.card.clone(true); c.traverse(o => { if (o.isMesh) o.material = o.material.name === 'card' ? cardMat : mat('card-pick', '', '#C9A877'); }); g.add(c); }
+  const wrapVis = wrapGroup.visible, hidden = [];
+  wrapGroup.visible = true; wrapGroup.traverse(o => { if (o.isMesh && !o.visible) { o.visible = true; hidden.push(o); } });
+  bouquet.add(g);
+  try { if (renderer.compileAsync) { const p = renderer.compileAsync(scene, camera); bouquet.remove(g); await p; } else renderer.compile(scene, camera); }
+  catch (e) {}
+  bouquet.remove(g);
+  wrapGroup.visible = wrapVis; for (const o of hidden) o.visible = false;
+}
 function sync3D() {
   if (!T.rose || !ribbonModel) return;
   if (!S.items.length) S.wrapped = false;
@@ -1958,9 +2004,30 @@ function aimSun() {
 let view = 'studio', flight = null;
 const clock = new THREE.Clock();
 const tmpV = new THREE.Vector3();
+// Shadows only need redrawing while something moves (a stem settling, the wrap, a flight); otherwise the slow
+// bob of the bouquet is caught a few times a second. On slower phones a calm scene is also drawn at 30 fps.
+let studioCalm = false, lastInput = 0, shadowTick = 0;
+for (const ev of ['pointerdown', 'pointermove', 'wheel']) stage.addEventListener(ev, () => { lastInput = performance.now(); }, { passive: true });
+function studioWatch(dt) {
+  if (story || document.hidden || sQ.tier >= 3 || document.querySelector('#sheetRoot .sheet.show')) { sQ.frames.length = 0; return; }
+  if (sQ.skip > 0) { sQ.skip--; return; }
+  sQ.frames.push(dt);
+  if (sQ.frames.length < 90) return;
+  const f = sQ.frames.sort((a, b) => a - b), med = f[f.length >> 1];
+  sQ.frames.length = 0;
+  if (med > 0.026) setStudioTier(sQ.tier + 1);
+}
+function setStudioTier(tier) {
+  sQ.tier = Math.min(3, tier); sQ.skip = 60;
+  try { localStorage.setItem(SQ_KEY, JSON.stringify({ tier: sQ.tier, at: Date.now() })); } catch (e) {}
+  if (sQ.tier >= 2 && key.shadow.mapSize.x > 512) { key.shadow.mapSize.setScalar(512); if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; } }
+  if (sQ.tier >= 3 && !LITE) { LITE = true; scene.traverse(o => { if (o.isMesh) o.material = liteMat(o.material); }); }
+  gardenDpr();
+}
 function stepStudio(dt, t) {
-  renderer.shadowMap.autoUpdate = true;
+  studioWatch(dt);
   const k = 1 - Math.pow(0.0015, dt);
+  let moving = !!flight || bursts.length > 0;
   for (const [nk, n] of nodes) {
     n.cur.az = angLerp(n.cur.az, n.tgt.az, k);
     n.cur.spin = angLerp(n.cur.spin, n.tgt.spin, k);
@@ -1968,6 +2035,8 @@ function stepStudio(dt, t) {
     n.vl += ((n.tgt.lift - n.cur.lift) * 70 - n.vl * 11) * dt; n.cur.lift += n.vl * dt;
     n.vs += ((n.tgt.s - n.cur.s) * 80 - n.vs * 14) * dt; n.cur.s = Math.max(0, n.cur.s + n.vs * dt);
     applyNode(n);
+    if (!moving && (n.dying || Math.abs(n.vl) > 0.004 || Math.abs(n.vs) > 0.004 || Math.abs(n.tgt.tilt - n.cur.tilt) > 0.002
+      || Math.abs(n.tgt.lift - n.cur.lift) > 0.002 || Math.abs(angDiff(n.tgt.az, n.cur.az)) > 0.003 || Math.abs(angDiff(n.tgt.spin, n.cur.spin)) > 0.003)) moving = true;
     if (n.fresh && n.cur.lift - n.tgt.lift < 0.02) {
       n.fresh = false;
       n.inner.updateWorldMatrix(true, false);
@@ -1979,8 +2048,9 @@ function stepStudio(dt, t) {
   const want = S.wrapped && S.items.length ? 1 : 0;
   if (wrapP !== want) {
     wrapP = reduceMotion ? want : clamp01(wrapP + Math.sign(want - wrapP) * dt / 1.7);
-    applyWrap(wrapP);
+    applyWrap(wrapP); moving = true;
   }
+  if (Math.abs(wrapScaleT - wrapScale) > 0.002 || Math.abs(teddyV) > 0.01) moving = true;
   wrapScale += (wrapScaleT - wrapScale) * k;
   wrapGroup.scale.set(wrapScale, 1, wrapScale);
   // teddy rides on the wrap's front lip
@@ -2029,11 +2099,14 @@ function stepStudio(dt, t) {
     if (Math.abs(d - len) > 0.002) camera.position.copy(controls.target).add(off.setLength(len + (d - len) * k * 0.6));
   }
   controls.update();
+  renderer.shadowMap.autoUpdate = false;
+  if (moving || ++shadowTick >= 6) { renderer.shadowMap.needsUpdate = true; shadowTick = 0; }
+  studioCalm = !moving && sQ.tier > 0;
   renderer.render(scene, camera);
 }
 const gSph = new THREE.Spherical(), gOff = new THREE.Vector3(), gTmp = new THREE.Vector3();
 function gardenDpr() {
-  const want = Math.min(devicePixelRatio || 1, view === 'garden' ? gQ.dpr : 2);
+  const want = Math.min(devicePixelRatio || 1, view === 'garden' ? gQ.dpr : SQ_DPR[sQ.tier]);
   if (Math.abs(renderer.getPixelRatio() - want) > 0.01) { renderer.setPixelRatio(want); resize(); }
 }
 function watchSpeed(dt) {
@@ -2094,7 +2167,8 @@ function tick() {
   // a sheet is open: the scene behind it stays smooth but is capped at ~30 fps to save battery.
   // While the camera is still flying to a tapped bed, draw every frame.
   const covered = !!document.querySelector('#sheetRoot .sheet.show') && !flight && !(view === 'garden' && gFocus);
-  if (covered && t - lastDraw < 1 / 30 - 0.002) renderer.render = () => {}; else { lastDraw = t; renderer.render = realRender; }
+  const calm = view === 'studio' && studioCalm && performance.now() - lastInput > 2500;
+  if ((covered || calm) && t - lastDraw < 1 / 30 - 0.002) renderer.render = () => {}; else { lastDraw = t; renderer.render = realRender; }
   if (story) {
     renderer.render = () => {};
     stepStudio(dt, t);
@@ -2168,13 +2242,34 @@ function renderTop() {
   }
   renderGold(); renderSwitch();
 }
+// Update a container to new markup but keep the nodes that did not change (images are not reloaded,
+// the scroll position and the pressed button stay). Form fields are swapped whole when they differ.
+function patchHTML(el, html) {
+  const tpl = document.createElement('template'); tpl.innerHTML = html;
+  patchKids(el, tpl.content);
+}
+function patchKids(cur, next) {
+  const a = [...cur.childNodes], b = [...next.childNodes];
+  for (let i = 0; i < b.length; i++) {
+    const x = a[i], y = b[i];
+    if (!x) { cur.appendChild(y); continue; }
+    if (x.isEqualNode(y)) continue;
+    if (x.nodeType === 1 && y.nodeType === 1 && x.tagName === y.tagName && x.id === y.id && !/^(INPUT|TEXTAREA|SELECT|IMG|VIDEO)$/.test(x.tagName)) {
+      for (const at of [...x.attributes]) if (!y.hasAttribute(at.name)) x.removeAttribute(at.name);
+      for (const at of [...y.attributes]) if (x.getAttribute(at.name) !== at.value) x.setAttribute(at.name, at.value);
+      patchKids(x, y);
+    } else if (x.nodeType === 3 && y.nodeType === 3) x.nodeValue = y.nodeValue;
+    else cur.replaceChild(y, x);
+  }
+  for (let i = a.length - 1; i >= b.length; i--) a[i].remove();
+}
 function renderTabs() {
   if (viewing) { $tabs.innerHTML = ''; return; }
   if (view === 'studio') {
-    $tabs.innerHTML = STUDIO_TABS.map(([id, label]) => {
+    patchHTML($tabs, STUDIO_TABS.map(([id, label]) => {
       const n = id === 'flowers' ? mains().length : id === 'greens' ? fills().length : 0;
       return `<button class="tab" role="tab" id="tab-${id}" data-tab="${id}" aria-selected="${id === tab}">${label}${n ? `<span class="n">${n}</span>` : ''}</button>`;
-    }).join('');
+    }).join(''));
   } else {
     const list = gardenEntries(), cin = list.filter(e => e.dir === 'in').length, cout = list.length - cin;
     $tabs.innerHTML = [['all', 'Tümü', list.length], ['in', 'Gelen', cin], ['out', 'Giden', cout]].map(([id, label, n]) =>
@@ -2261,7 +2356,7 @@ function renderPane() {
       <div class="row" style="grid-template-columns: minmax(0,1fr) auto"><div class="lbl"><span>Kartı buketin içinde göster</span></div>
         <button class="switch" role="switch" aria-checked="${S.showCard}" data-act="toggleCard" aria-label="Kartı göster" id="sw-card"></button></div>`;
   }
-  $pane.innerHTML = h;
+  patchHTML($pane, h);
 }
 function renderFoot() {
   if (viewing) {
@@ -2278,7 +2373,7 @@ function renderFoot() {
   if (!n) { meta = 'Masa boş. İlk çiçeği seç.'; btn = `<button class="cta" disabled>Buketi sar</button>`; }
   else if (!S.wrapped) { meta = `<b>${mains().length}</b> dal çiçek hazır.${c.total ? ` Premium: <b>${c.total}</b> altın` : ''}`; btn = `<button class="cta" data-foot="wrap" id="ctaWrap">Buketi sar</button>`; }
   else { meta = c.total ? `Premium çiçekler <b>${c.total}</b> altın` : 'Bu buket ücretsiz'; btn = `<button class="cta" data-foot="send" id="ctaSend">Gönder${c.total ? `<span class="cost">${coin('sm')}${c.total}</span>` : ''}</button>`; }
-  $foot.innerHTML = `<div class="meta">${meta}</div>${btn}`;
+  patchHTML($foot, `<div class="meta">${meta}</div>${btn}`);
 }
 function refresh(opts = {}) {
   renderTop(); renderTabs(); renderPane(); renderFoot();
@@ -3434,7 +3529,7 @@ function renderSwitch() {
   el.querySelectorAll('[data-gmode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.gmode === gMode)));
 }
 async function setView(v, opt = {}) {
-  view = v;
+  view = v; sQ.skip = 90; sQ.frames.length = 0;
   if (v === 'garden') { const m = location.hash === '#bahcemiz' ? 'ours' : 'mine'; if (m !== gMode) { gMode = m; gFocus = null; } }
   renderSwitch();
   const g = v === 'garden';
@@ -3482,6 +3577,7 @@ const serverCheck = fetch(apiUrl('/api/health'), { cache: 'no-store' }).then(r =
   buildTeddy();
   wrapP = S.wrapped && S.items.length ? 1 : 0; applyWrap(wrapP);
   sync3D(); renderFoot();
+  await Promise.race([warmShaders(), new Promise(r => setTimeout(r, 3000))]);
   await serverCheck;
   if (serverOK) { try { await ensureSession(); } catch (e) { serverOK = false; } }
   if (serverOK && !NATIVE && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

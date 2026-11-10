@@ -8,8 +8,9 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
+        // pencere uygulamanın kendi temasıyla kurulduktan sonra kenardan kenara çiz
+        EdgeToEdge.enable(this);
         // Telefonda yazı boyutu çok büyütülmüşse ekranlar taşmasın: sistem ayarını %90-%110 aralığında uygula
         if (bridge != null && bridge.getWebView() != null) {
             WebSettings ws = bridge.getWebView().getSettings();

@@ -56,10 +56,28 @@ if (fs.existsSync(andr)) {
   write(path.join(andr, 'res', 'values-night', 'demet_colors.xml'), colorsXml('#161F1A', '#F0728F'));
 
   // uygulama teması: pencere zemini uygulamanın zemin rengi olsun (sistem çubuklarının arkası beyaz/gri kalmasın)
+  // açılış zemini: düz renk ve ortada, oranı bozulmadan duran açılış görseli
+  write(path.join(andr, 'res', 'drawable', 'demet_launch.xml'), `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/demet_bg" />
+    <item><bitmap android:gravity="center" android:src="@drawable/splash" /></item>
+</layer-list>
+`);
   const stylesF = path.join(andr, 'res', 'values', 'styles.xml');
   let st = read(stylesF);
   st = st.replace(/\s*<item name="android:windowBackground">@color\/demet_bg<\/item>/g, '');
   st = st.replace(/(<style name="AppTheme\.NoActionBar"[^>]*>)/, '$1\n        <item name="android:windowBackground">@color/demet_bg</item>');
+  // açılış teması: başlık çubuğu olmasın (yoksa açılış görseli üstte ezik bir çubuk olarak kalıyordu),
+  // görsel yalnızca pencere zemininde dursun ve açılıştan sonra uygulamanın kendi temasına geçilsin
+  st = st.replace(/<style name="AppTheme\.NoActionBarLaunch"[\s\S]*?<\/style>/, `<style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:windowBackground">@drawable/demet_launch</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="windowActionBar">false</item>
+        <item name="windowSplashScreenBackground">@color/demet_bg</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>`);
   write(stylesF, st);
 
   const act = path.join(andr, 'java', ...appId.split('.'), 'MainActivity.java');
@@ -73,8 +91,9 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
+        // pencere uygulamanın kendi temasıyla kurulduktan sonra kenardan kenara çiz
+        EdgeToEdge.enable(this);
         // Telefonda yazı boyutu çok büyütülmüşse ekranlar taşmasın: sistem ayarını %90-%110 aralığında uygula
         if (bridge != null && bridge.getWebView() != null) {
             WebSettings ws = bridge.getWebView().getSettings();
