@@ -1,5 +1,5 @@
 // Demet service worker: bildirimler + hızlı açılış için önbellek.
-const VERSION = 'demet-v7';
+const VERSION = 'demet-v8';
 const ASSETS = /\/(models|garden)\.json(\?|$)|\/thumbs\/|\/icons\/|cdn\.jsdelivr\.net\/npm\/three@|fonts\.(googleapis|gstatic)\.com/;
 
 self.addEventListener('install', e => {
