@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Demet",
+    "slug": "demet",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "me.furkansahin.demet",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "me.furkansahin.demet",
+      "adaptiveIcon": {
+        "backgroundColor": "#FBE9EE",
+        "foregroundImage": "./assets/icon-foreground.png",
+        "backgroundImage": "./assets/icon-background.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "demet"
+  }
+}

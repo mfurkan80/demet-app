@@ -1,0 +1,129 @@
+# React Native (Expo) Android uygulamasını derler, Android emülatöründe açıp ekran görüntüsü alır.
+# APK, ekran görüntüleri ve uygulama günlüğü "rn-test" sürümüne yüklenir.
+name: RN Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/rn-android.yml']
+
+concurrency:
+  group: rn-android
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Hata olursa son satırları açıklama (annotation) olarak yazar; böylece günlük indirilmeden görülebilir
+      - name: Yardımcı
+        working-directory: .
+        run: |
+          cat > "$RUNNER_TEMP/run.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -o pipefail
+          log="$RUNNER_TEMP/step.log"
+          if ! bash -c "$1" 2>&1 | tee "$log"; then
+            msg=$(grep -E "error|Error|ERROR|FAILED|What went wrong" "$log" | tail -n 25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Hata (özet)::$msg"
+            msg=$(tail -n 40 "$log" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Hata (son satırlar)::$msg"
+            exit 1
+          fi
+          SH
+          chmod +x "$RUNNER_TEMP/run.sh"
+
+      - name: Android SDK lisansları
+        run: |
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SM=$(ls -d "$SDK"/cmdline-tools/*/bin/sdkmanager | sort | tail -1)
+          yes | "$SM" --licenses > /dev/null || true
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"; echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+
+      - name: Paketler
+        run: '"$RUNNER_TEMP/run.sh" "npm ci"'
+
+      - name: Android projesini üret
+        run: '"$RUNNER_TEMP/run.sh" "npx expo prebuild --platform android --no-install --clean"'
+
+      - name: İmza anahtarı
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/demet.jks"
+            echo "KS_PASS=$KS_PASS" >> "$GITHUB_ENV"; echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"; echo "KEY_PASS=$KEY_PASS" >> "$GITHUB_ENV"
+          else
+            keytool -genkeypair -v -keystore "$RUNNER_TEMP/demet.jks" -storepass demetbeta -keypass demetbeta -alias demet \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Demet Beta, O=Demet, C=TR"
+            echo "KS_PASS=demetbeta" >> "$GITHUB_ENV"; echo "KEY_ALIAS=demet" >> "$GITHUB_ENV"; echo "KEY_PASS=demetbeta" >> "$GITHUB_ENV"
+          fi
+
+      - name: APK derle
+        working-directory: app/android
+        run: |
+          chmod +x gradlew
+          "$RUNNER_TEMP/run.sh" "./gradlew assembleRelease --no-daemon --console=plain \
+            -PreactNativeArchitectures=arm64-v8a,x86_64 \
+            -Pandroid.injected.signing.store.file=$RUNNER_TEMP/demet.jks \
+            -Pandroid.injected.signing.store.password=$KS_PASS \
+            -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$KEY_PASS"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/out/demet-rn.apk"
+          ls -la "$GITHUB_WORKSPACE/out"
+
+      - name: KVM
+        working-directory: .
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Emülatör testi
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          working-directory: .
+          script: bash app/scripts/emulator-test.sh out
+
+      - name: Sonuçları yükle (rn-test)
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rn-test
+          target_commitish: ${{ github.sha }}
+          name: Demet React Native (test)
+          prerelease: true
+          make_latest: false
+          files: out/*
+          body: |
+            React Native test derlemesi · ${{ github.sha }}
