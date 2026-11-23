@@ -192,6 +192,7 @@ export const Welcome = ({ top, bottom }) => {
   return (
     <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 15, opacity: v }]} pointerEvents={ui.welcome ? 'box-none' : 'none'}>
       {ui.gardenLoading ? <LinearGradient colors={t.gardenSky} style={StyleSheet.absoluteFill} pointerEvents="none" /> : null}
+      <LinearGradient colors={[alpha(t.surface, 0.85), alpha(t.surface, 0)]} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: top + 130 }} pointerEvents="none" />
       <View style={[st.whead, { top: top + 8 }]} pointerEvents="none">
         <Text style={[st.wmark, { color: t.accent, textShadowColor: alpha(t.surface, 0.9), textShadowRadius: 12 }]}>Demet</Text>
         <Text style={{ fontFamily: F.semi, fontSize: 14.5, color: t.ink, textShadowColor: alpha(t.surface, 0.9), textShadowRadius: 10 }}>sevgiyle büyüyen bir bahçe</Text>
