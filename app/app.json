@@ -21,6 +21,30 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "demet"
+    "scheme": "demet",
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false
+          }
+        }
+      ],
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#FBFCFA",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#161F1A"
+          }
+        }
+      ]
+    ]
   }
 }
