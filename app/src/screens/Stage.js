@@ -52,7 +52,7 @@ export const Stage = memo(({ width, height, dark, onReady, onError, onTap, inset
     }
   };
 
-  const pan = Gesture.Pan().maxPointers(1).minDistance(2).runOnJS(true)
+  const pan = Gesture.Pan().maxPointers(1).minDistance(8).runOnJS(true)
     .onBegin(e => { last.current.x = e.absoluteX; last.current.y = e.absoluteY; eng.current && eng.current.begin(); })
     .onUpdate(e => {
       const L = last.current, dx = e.absoluteX - L.x, dy = e.absoluteY - L.y; L.x = e.absoluteX; L.y = e.absoluteY;

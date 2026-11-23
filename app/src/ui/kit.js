@@ -30,10 +30,10 @@ const usePress = (to = 0.96) => {
   const go = v => Animated.spring(s, { toValue: v, useNativeDriver: true, speed: 40, bounciness: v === 1 ? 6 : 0 }).start();
   return { scale: s, onPressIn: () => go(to), onPressOut: () => go(1) };
 };
-export const Tap = ({ onPress, disabled, style, children, scaleTo = 0.96, hapticKind, hitSlop = 6, ...p }) => {
+export const Tap = ({ onPress, disabled, style, outer, children, scaleTo = 0.96, hapticKind, hitSlop = 6, ...p }) => {
   const pr = usePress(scaleTo);
   return (
-    <Pressable {...p} hitSlop={hitSlop} disabled={disabled} onPressIn={pr.onPressIn} onPressOut={pr.onPressOut}
+    <Pressable {...p} style={outer} hitSlop={hitSlop} disabled={disabled} onPressIn={pr.onPressIn} onPressOut={pr.onPressOut}
       onPress={e => { if (hapticKind) haptic(hapticKind); onPress && onPress(e); }}>
       <Animated.View style={[style, { transform: [{ scale: pr.scale }] }]}>{children}</Animated.View>
     </Pressable>

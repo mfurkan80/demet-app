@@ -4,6 +4,11 @@ name: RN Android
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Test geçerse APK ve AAB yayınlansın'
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ['app/**', '.github/workflows/rn-android.yml']
@@ -95,14 +100,17 @@ jobs:
         working-directory: app/android
         run: |
           chmod +x gradlew
-          "$RUNNER_TEMP/run.sh" "./gradlew assembleRelease --no-daemon --console=plain \
-            -PreactNativeArchitectures=arm64-v8a,x86_64 \
+          "$RUNNER_TEMP/run.sh" "./gradlew assembleRelease bundleRelease --no-daemon --console=plain \
+            -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86_64 \
             -Pandroid.injected.signing.store.file=$RUNNER_TEMP/demet.jks \
             -Pandroid.injected.signing.store.password=$KS_PASS \
             -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
             -Pandroid.injected.signing.key.password=$KEY_PASS"
           mkdir -p "$GITHUB_WORKSPACE/out"
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/out/demet-rn.apk"
+          mkdir -p "$GITHUB_WORKSPACE/store"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/store/demet.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/store/demet.aab"
           ls -la "$GITHUB_WORKSPACE/out"
 
       - name: KVM
@@ -113,6 +121,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Emülatör testi
+        timeout-minutes: 35
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -136,3 +145,32 @@ jobs:
           files: out/*
           body: |
             React Native test derlemesi · ${{ github.sha }}
+
+      # emülatör testi geçtiyse: telefona kurulacak APK ve Play Console'a yüklenecek AAB
+      - name: Deneme APK'sı (android-beta)
+        if: success() && inputs.publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-beta
+          target_commitish: ${{ github.sha }}
+          name: Demet Android (deneme sürümü)
+          prerelease: true
+          make_latest: false
+          files: store/demet.apk
+          body: |
+            Telefonunda bu sayfadan **demet.apk** dosyasını indir ve aç. Android “bilinmeyen kaynaklardan yükleme” izni isterse ver.
+            Sürüm: ${{ github.run_number }} · ${{ github.sha }}
+
+      - name: Play Store paketi (android-store)
+        if: success() && inputs.publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-store
+          target_commitish: ${{ github.sha }}
+          name: Demet Play Store paketi
+          prerelease: true
+          make_latest: false
+          files: store/demet.aab
+          body: |
+            Play Console'a yüklenecek paket (demet.aab). Yükleme anahtarı secret'larla verilmediyse bu paket Play'e yüklenemez; bkz. app/STORE.md.
+            Sürüm kodu: ${{ github.run_number }} · ${{ github.sha }}

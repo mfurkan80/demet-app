@@ -9,31 +9,40 @@ adb logcat -c
 STEPS="$OUT/steps.txt"; : > "$STEPS"
 n=0
 shot() { n=$((n + 1)); local f; f=$(printf "%02d-%s.png" "$n" "$1"); adb exec-out screencap -p > "$OUT/$f"; echo "shot $f" >> "$STEPS"; }
-# find an element by its text or accessibility label and tap its center
-tap() {
-  local label="$1" tries=0 xy=""
-  while [ $tries -lt 4 ] && [ -z "$xy" ]; do
-    adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
-    adb pull /sdcard/ui.xml "$OUT/ui.xml" > /dev/null 2>&1
+# find an element by its text or accessibility label (a trailing * matches a prefix); prints "x y"
+find() {
+  local label="$1" max="${2:-3}" tries=0 xy=""
+  while [ $tries -lt $max ] && [ -z "$xy" ]; do
+    adb shell rm -f /sdcard/ui.xml > /dev/null 2>&1
+    timeout 25 adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+    timeout 10 adb pull /sdcard/ui.xml "$OUT/ui.xml" > /dev/null 2>&1
     xy=$(python3 - "$OUT/ui.xml" "$label" <<'PY'
 import re, sys
-xml = open(sys.argv[1], encoding='utf-8', errors='ignore').read(); want = sys.argv[2]
+try: xml = open(sys.argv[1], encoding='utf-8', errors='ignore').read()
+except Exception: xml = ''
+want = sys.argv[2]
+ok = (lambda v: v.startswith(want[:-1])) if want.endswith('*') else (lambda v: v == want)
 for m in re.finditer(r'<node [^>]*>', xml):
     n = m.group(0)
     t = re.search(r' text="([^"]*)"', n); d = re.search(r'content-desc="([^"]*)"', n); b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', n)
-    ok = (lambda v: v.startswith(want[:-1])) if want.endswith('*') else (lambda v: v == want)
     if b and ((t and ok(t.group(1))) or (d and ok(d.group(1)))):
         x0, y0, x1, y1 = map(int, b.groups())
         if x1 > x0 and y1 > y0: print((x0 + x1) // 2, (y0 + y1) // 2); break
 PY
 )
-    tries=$((tries + 1)); [ -z "$xy" ] && sleep 2
+    tries=$((tries + 1)); [ -z "$xy" ] && sleep 3
   done
-  if [ -z "$xy" ]; then echo "MISS $label" >> "$STEPS"; return 1; fi
-  adb shell input tap $xy; echo "tap $label @ $xy" >> "$STEPS"; return 0
+  [ -n "$xy" ] && echo "$xy"
+}
+tap() {
+  local xy; xy=$(find "$1" "${2:-3}")
+  if [ -z "$xy" ]; then echo "MISS $1" >> "$STEPS"; return 1; fi
+  adb shell input tap $xy; echo "tap $1 @ $xy" >> "$STEPS"; return 0
 }
 adb shell am start -n "$PKG/.MainActivity"
-sleep 45; shot karsilama
+sleep 25; shot acilis
+# wait (up to ~3 min) for the welcome card, then continue as a guest
+find "Misafir olarak giriş yap" 15 > /dev/null; sleep 8; shot karsilama
 tap "Misafir olarak giriş yap"; sleep 12; shot atolye-bos
 tap "Bir dal gül ekle"; sleep 3; tap "Bir dal gül ekle"; sleep 3; tap "Bir dal gül ekle"; sleep 3
 tap "Bir dal lale ekle"; sleep 3; tap "Bir dal ayçiçeği ekle"; sleep 6; shot cicekler

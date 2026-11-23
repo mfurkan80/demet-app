@@ -8,11 +8,9 @@
 #   GOOGLE_SERVICES_JSON_BASE64 -> Firebase bildirimleri için google-services.json
 name: Android APK
 
+# Eski (Capacitor/WebView) uygulama. Telefon uygulaması artık React Native: rn-android.yml. Bu derleme yalnızca elle çalışır.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['public/**', 'mobile/**', '.github/workflows/android-apk.yml']
 
 concurrency:
   group: android-apk

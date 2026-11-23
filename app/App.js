@@ -33,7 +33,7 @@ const Main = () => {
   const stageH = H - panelGarden + 20;
   const top = Math.max(14, ins.top + 6);
   const insets = useMemo(() => ({ top: top + 56, bottom: panelStudio - panelGarden, garden: 0 }), [top, panelStudio, panelGarden]);
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(false), [glFail, setGlFail] = useState(false);
   const booted = useRef(false);
 
   const onReady = useCallback(() => {
@@ -46,6 +46,7 @@ const Main = () => {
       await bootServer({ initialUrl: url });
     })();
   }, []);
+  const onGlError = useCallback(() => setGlFail(true), []);
   const onTap = useCallback(id => {
     if (ui.view === 'garden' && id && !ui.welcome) { openEntry(id); E.cur && E.cur.focusPatch(id); }
   }, []);
@@ -70,7 +71,7 @@ const Main = () => {
   return (
     <View style={[st.root, { backgroundColor: garden ? t.gardenSky[2] : t.surface }]}>
       <StatusBar style={dark ? 'light' : 'dark'} />
-      <Stage width={W} height={stageH} dark={dark} onReady={onReady} onTap={onTap} insets={insets} />
+      <Stage width={W} height={stageH} dark={dark} onReady={onReady} onError={onGlError} onTap={onTap} insets={insets} />
       <Empty top={insets.top} height={H - panelStudio} />
       <Hint bottom={panelH + 26} />
       <TopBar top={top} narrow={W <= 400} onGold={openShop} onMe={openAccount} />
@@ -80,7 +81,7 @@ const Main = () => {
       {showPanel ? <Panel height={panelUp} bottom={ins.bottom} kb={kb} /> : null}
       <Welcome top={top} bottom={ins.bottom} />
       <Gift top={top} bottom={ins.bottom} />
-      <Loading on={!ready} />
+      <Loading on={!ready} text={glFail ? '3D sahne açılamadı' : undefined} sub={glFail ? 'Uygulamayı kapatıp yeniden açmayı dene.' : undefined} />
       <Loading on={ready && ui.gardenLoading && !ui.welcome} garden text="Bahçe hazırlanıyor…" sub="Buketler toprağa ekiliyor…" />
       <Burst />
       <SheetHost />

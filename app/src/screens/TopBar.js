@@ -39,6 +39,7 @@ export const TopBar = ({ top, onGold, onMe, narrow }) => {
   const shadow = garden ? { textShadowColor: alpha(t.surface, 0.9), textShadowRadius: 10 } : null;
   const pill = [st.pill, { borderColor: t.line, backgroundColor: alpha(t.surface, 0.86) }];
   const hideActions = ui.welcome;
+  if (ui.welcome) return null;
   return (
     <View style={[st.bar, { paddingTop: top }]} pointerEvents="box-none">
       <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">

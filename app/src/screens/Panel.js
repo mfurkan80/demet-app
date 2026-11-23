@@ -54,7 +54,7 @@ const FCard = memo(({ type, f, n, full, active, w, t, onAdd, onMinus }) => {
       </Tap>
       {n ? <>
         <View style={[st.cnt, { backgroundColor: t.ink }]} pointerEvents="none"><Text style={[st.cntT, { color: t.surface }]}>{n}</Text></View>
-        <Tap onPress={onMinus} scaleTo={0.85} hitSlop={8} accessibilityLabel={`Bir dal ${lower(f.name)} çıkar`}
+        <Tap onPress={onMinus} scaleTo={0.85} hitSlop={8} outer={st.minusPos} accessibilityLabel={`Bir dal ${lower(f.name)} çıkar`}
           style={[st.minus, { borderColor: t.line, backgroundColor: t.surface }]}>
           <Text style={{ fontFamily: F.semi, fontSize: 18, lineHeight: 20, color: t.ink }}>−</Text>
         </Tap>
@@ -394,7 +394,8 @@ const st = StyleSheet.create({
   fprT: { fontFamily: F.body, fontSize: 12, fontVariant: ['tabular-nums'] },
   cnt: { position: 'absolute', top: 6, right: 6, minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cntT: { fontFamily: F.bold, fontSize: 13, fontVariant: ['tabular-nums'] },
-  minus: { position: 'absolute', top: 5, left: 5, width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', elevation: 2 },
+  minusPos: { position: 'absolute', top: 5, left: 5 },
+  minus: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', elevation: 2 },
   wrapcard: { borderRadius: R.md, padding: 14, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', gap: 12 },
   dico: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   unlock: { borderWidth: 1.5, borderRadius: 999, height: 34, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 5 },
