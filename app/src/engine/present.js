@@ -8,7 +8,7 @@ const VERT = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(positi
 const FRAG = `
 precision highp float;
 uniform sampler2D tScene; uniform vec2 px; uniform float exposure, fxaa, tone;
-uniform vec3 bgA, bgB; uniform float bgMode; uniform vec2 aspect;
+uniform vec3 bgA, bgB; uniform float bgMode, keepAlpha; uniform vec2 aspect;
 varying vec2 vUv;
 vec3 RRTAndODTFit(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
 vec3 aces(vec3 c){
@@ -32,7 +32,9 @@ vec3 shade(vec2 uv){
 float luma(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
 void main(){
   vec3 rgbM = shade(vUv);
-  if (fxaa < 0.5) { gl_FragColor = vec4(rgbM, 1.0); return; }
+  // transparent output (story image): premultiplied color with the scene's own coverage
+  float outA = keepAlpha > 0.5 ? clamp(texture2D(tScene, vUv).a, 0.0, 1.0) : 1.0;
+  if (fxaa < 0.5) { gl_FragColor = vec4(rgbM, outA); return; }
   vec3 rgbNW = shade(vUv + vec2(-1.0, -1.0) * px), rgbNE = shade(vUv + vec2(1.0, -1.0) * px);
   vec3 rgbSW = shade(vUv + vec2(-1.0, 1.0) * px), rgbSE = shade(vUv + vec2(1.0, 1.0) * px);
   float lNW = luma(rgbNW), lNE = luma(rgbNE), lSW = luma(rgbSW), lSE = luma(rgbSE), lM = luma(rgbM);
@@ -44,7 +46,7 @@ void main(){
   vec3 a = 0.5 * (shade(vUv + dir * (1.0 / 3.0 - 0.5)) + shade(vUv + dir * (2.0 / 3.0 - 0.5)));
   vec3 b = a * 0.5 + 0.25 * (shade(vUv + dir * -0.5) + shade(vUv + dir * 0.5));
   float lB = luma(b);
-  gl_FragColor = vec4((lB < lMin || lB > lMax) ? a : b, 1.0);
+  gl_FragColor = vec4((lB < lMin || lB > lMax) ? a : b, outA);
 }`;
 
 export class Presenter {
@@ -58,7 +60,7 @@ export class Presenter {
       vertexShader: VERT, fragmentShader: FRAG, depthTest: false, depthWrite: false, toneMapped: false,
       uniforms: {
         tScene: { value: this.rt.texture }, px: { value: new THREE.Vector2() }, exposure: { value: 1 }, fxaa: { value: 1 }, tone: { value: 1 },
-        bgA: { value: new THREE.Color() }, bgB: { value: new THREE.Color() }, bgMode: { value: 1 }, aspect: { value: new THREE.Vector2(1, 1) },
+        bgA: { value: new THREE.Color() }, bgB: { value: new THREE.Color() }, bgMode: { value: 1 }, keepAlpha: { value: 0 }, aspect: { value: new THREE.Vector2(1, 1) },
       },
     });
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.mat); this.quad.frustumCulled = false;
@@ -83,13 +85,13 @@ export class Presenter {
     // the shader mixes these in sRGB space, like the browser does with CSS colors
     u.bgA.value.convertLinearToSRGB(); u.bgB.value.convertLinearToSRGB();
   }
-  render(scene, camera, { exposure = 1, fxaa = true, target = null } = {}) {
+  render(scene, camera, { exposure = 1, fxaa = true, target = null, alpha = false } = {}) {
     const r = this.renderer, prevTone = r.toneMapping;
     r.setRenderTarget(this.rt);
     r.setClearColor(0x000000, 0); r.clear();
     r.render(scene, camera);
     r.setRenderTarget(target);
-    const u = this.mat.uniforms; u.exposure.value = exposure; u.fxaa.value = fxaa ? 1 : 0; u.tone.value = prevTone === THREE.NoToneMapping ? 0 : 1;
+    const u = this.mat.uniforms; u.exposure.value = exposure; u.fxaa.value = fxaa ? 1 : 0; u.tone.value = prevTone === THREE.NoToneMapping ? 0 : 1; u.keepAlpha.value = alpha ? 1 : 0;
     r.render(this.qScene, this.qCam);
     if (target) r.setRenderTarget(null);
   }

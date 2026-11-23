@@ -1105,20 +1105,21 @@ const pickBed = (x, y) => {
 
 /* ======================================================================= camera fit + loop */
 // on a phone the bouquet should not sit under the top bar (name, gold, buttons): shift the image down and fit it
-let camFrac = 1, topInset = 0, welcomeOpen = false;
+let camFrac = 1, topInset = 0, botInset = 0, welcomeOpen = false;
 const studioFrame = () => {
   const w = viewW, h = viewH;
   if (h > 0) {
-    const top = Math.max(0, topInset) * 0.6, bot = 18;
+    const top = Math.max(0, topInset) * 0.6, bot = 18 + Math.max(0, botInset);
     camFrac = Math.max(0.62, (h - top - bot) / h);
     camera.setViewOffset(w, h, 0, -(top - bot) / 2, w, h);
   } else { camFrac = 1; camera.clearViewOffset(); }
 }
 // while the welcome card covers the lower part of the screen, slide the garden up into the free area
+let gBotInset = 0;
 const welcomeFrame = () => {
   const w = viewW, h = viewH;
   if (welcomeOpen && w && h) gCam.setViewOffset(w, h, 0, h * 0.2, w, h);
-  else if (w && h) gCam.setViewOffset(w, h, 0, -Math.min(30, h * 0.05), w, h);
+  else if (w && h) gCam.setViewOffset(w, h, 0, -Math.min(30, h * 0.05) + gBotInset / 2, w, h);
   else gCam.clearViewOffset();
 }
 const resize = () => {
@@ -1350,7 +1351,7 @@ const renderBouquet = (w, h, cam, bg = true) => {
   if (bg) snapPresenter.setBackground(d ? '#22151B' : '#F7E5EB', d ? '#101814' : '#E6EEE8'); else snapPresenter.setBackground(null);
   const out = outTarget(w, h);
   const prevAuto = renderer.shadowMap.autoUpdate; renderer.shadowMap.needsUpdate = true;
-  snapPresenter.render(scene, cam, { exposure: renderer.toneMappingExposure, fxaa: true, target: out });
+  snapPresenter.render(scene, cam, { exposure: renderer.toneMappingExposure, fxaa: true, target: out, alpha: !bg });
   renderer.shadowMap.autoUpdate = prevAuto;
   const px = readTarget(out, w, h); out.dispose();
   return px;
@@ -1366,7 +1367,7 @@ const storyPixels = (w = 720, h = 1280, a = 0.35) => {
   const cam = new THREE.PerspectiveCamera(30, w / h, 0.05, 30);
   const dd = fitDist(w / (h * 0.62), 30, 1) * 1.22;
   cam.position.set(Math.sin(a) * dd * 0.92, 0.58 + dd * 0.3, Math.cos(a) * dd * 0.92); cam.lookAt(0, 0.36, 0);
-  return { width: w, height: h, pixels: renderBouquet(w, h, cam, false) };
+  return { width: w, height: h, pixels: renderBouquet(w, h, cam, false), premultiplied: true };
 }
 
 /* ======================================================================= setup */
@@ -1396,6 +1397,12 @@ const api = {
   layoutChanged: () => { if (!userMoved) placeCamera(); },
   resize(w, h, inset = topInset) { viewW = w; viewH = h; topInset = inset; resize(); if (!userMoved) placeCamera(); },
   setTopInset(px) { topInset = px; studioFrame(); },
+  // part of the view covered by the bottom panel (studio) / extra panel height (garden)
+  setInsets(top, bottom, gardenBottom = 0) {
+    topInset = top; botInset = bottom; gBotInset = gardenBottom; studioFrame(); welcomeFrame();
+    for (const c of [camera, gCam]) c.updateProjectionMatrix();
+    if (!userMoved) placeCamera();
+  },
   setDark(d) { if (darkMode === !!d) return; darkMode = !!d; applyTheme(); },
   setCovered(c) { covered = !!c; if (!c) { sQ.skip = Math.max(sQ.skip, 30); } },
   setWelcome(open) { welcomeOpen = !!open; welcomeFrame(); },

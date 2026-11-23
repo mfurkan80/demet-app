@@ -91,7 +91,7 @@ class SkiaContext {
     const { Skia, BlendMode } = skia();
     const p = Skia.Paint(); p.setBlendMode(BlendMode.Clear); this.canvas.drawRect({ x, y, width: w, height: h }, p);
   }
-  beginPath() { this.path = skia().Skia.Path.Make(); }
+  beginPath() { const { Skia } = skia(); this.path = Skia.PathBuilder ? Skia.PathBuilder.Make() : Skia.Path.Make(); }
   ensure() { if (!this.path) this.beginPath(); return this.path; }
   moveTo(x, y) { this.ensure().moveTo(x, y); }
   lineTo(x, y) { this.ensure().lineTo(x, y); }
@@ -107,9 +107,24 @@ class SkiaContext {
     if (Math.abs(sweep) >= Math.PI * 2 - 1e-6) this.ensure().addOval(oval);
     else this.ensure().arcToOval(oval, (a0 * 180) / Math.PI, (sweep * 180) / Math.PI, false);
   }
+  roundRect(x, y, w, h, r) { this.ensure().addRRect({ rect: { x, y, width: w, height: h }, rx: r, ry: r }); }
+  // draw a Skia image (from imageFromPixels) scaled into the rectangle
+  drawImage(img, x, y, w, h) {
+    const { Skia } = skia();
+    const p = Skia.Paint(); p.setAntiAlias(true); if (this.state.globalAlpha !== 1) p.setAlphaf(this.state.globalAlpha);
+    this.canvas.drawImageRect(img, { x: 0, y: 0, width: img.width(), height: img.height() }, { x, y, width: w ?? img.width(), height: h ?? img.height() }, p);
+  }
+  // soft drop shadow under a rounded rectangle (the story card)
+  shadowRRect(x, y, w, h, r, color, blur, dy) {
+    const { Skia, BlurStyle } = skia();
+    const p = Skia.Paint(); p.setAntiAlias(true); p.setColor(Skia.Color(color));
+    p.setMaskFilter(Skia.MaskFilter.MakeBlur(BlurStyle.Normal, blur / 2, true));
+    this.canvas.drawRRect({ rect: { x, y: y + dy, width: w, height: h }, rx: r, ry: r }, p);
+  }
   ellipse(x, y, rx, ry) { this.ensure().addOval({ x: x - rx, y: y - ry, width: rx * 2, height: ry * 2 }); }
-  fill() { if (this.path) this.canvas.drawPath(this.path, this.paint(this.state.fillStyle)); }
-  stroke() { if (this.path) this.canvas.drawPath(this.path, this.paint(this.state.strokeStyle, true)); }
+  built() { return this.path.build ? this.path.build() : this.path; }
+  fill() { if (this.path) this.canvas.drawPath(this.built(), this.paint(this.state.fillStyle)); }
+  stroke() { if (this.path) this.canvas.drawPath(this.built(), this.paint(this.state.strokeStyle, true)); }
   skFont() {
     const { Skia } = skia();
     const f = parseFont(this.state.font), tf = pickFace(f.families, f.weight);
@@ -151,7 +166,20 @@ export const createCanvas = (w, h) => {
     const img = cv.sk.makeImageSnapshot();
     return img.readPixels(0, 0, { width: w, height: h, colorType: ColorType.RGBA_8888, alphaType: AlphaType.Unpremul });
   };
+  // encode as a base64 JPEG or PNG
+  cv.toBase64 = (fmt = 'jpeg', q = 85) => {
+    const { ImageFormat } = skia();
+    cv.sk.flush();
+    return cv.sk.makeImageSnapshot().encodeToBase64(fmt === 'png' ? ImageFormat.PNG : ImageFormat.JPEG, q);
+  };
   return cv;
+};
+
+// a Skia image from RGBA pixels (top row first), e.g. what the engine reads back from the GPU
+export const imageFromPixels = (w, h, px, premul = false) => {
+  const { Skia, AlphaType, ColorType } = skia();
+  const data = Skia.Data.fromBytes(px instanceof Uint8Array ? px : new Uint8Array(px.buffer || px));
+  return Skia.Image.MakeImage({ width: w, height: h, alphaType: premul ? AlphaType.Premul : AlphaType.Unpremul, colorType: ColorType.RGBA_8888 }, data, w * 4);
 };
 
 const toBytes = (c, flipY) => {

@@ -63,7 +63,16 @@ jobs:
       - name: Paketler
         run: '"$RUNNER_TEMP/run.sh" "npm ci"'
 
+      - name: Firebase (varsa)
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GS" ]; then echo "$GS" | base64 -d > google-services.json; echo "google-services.json eklendi"; else echo "google-services.json yok, bildirimler kapalı"; fi
+
       - name: Android projesini üret
+        env:
+          DEMET_BUILD: ${{ github.run_number }}
+          REVENUECAT_ANDROID_KEY: ${{ secrets.REVENUECAT_ANDROID_KEY }}
         run: '"$RUNNER_TEMP/run.sh" "npx expo prebuild --platform android --no-install --clean"'
 
       - name: İmza anahtarı
