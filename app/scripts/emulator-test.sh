@@ -4,14 +4,14 @@
 # Her adımda ekran görüntüsü alır. Kullanım: emulator-test.sh <çıktı klasörü>
 OUT="$1"; mkdir -p "$OUT"
 PKG=me.furkansahin.demet
-adb install -r "$OUT/demet-rn.apk" || { echo "::error title=Kurulum::APK kurulamadı"; exit 1; }
+timeout 300 adb install -r "$OUT/demet-rn.apk" || { echo "::error title=Kurulum::APK kurulamadı"; exit 1; }
 adb logcat -c
 adb logcat -v time > "$OUT/logcat-full.txt" 2>/dev/null &
 LOGPID=$!
 mem() { echo "--- meminfo $1" >> "$OUT/meminfo.txt"; timeout 20 adb shell dumpsys meminfo $PKG | head -45 >> "$OUT/meminfo.txt" 2>&1; timeout 10 adb shell cat /proc/meminfo | head -4 >> "$OUT/meminfo.txt"; }
 STEPS="$OUT/steps.txt"; : > "$STEPS"
 n=0
-shot() { n=$((n + 1)); local f; f=$(printf "%02d-%s.png" "$n" "$1"); adb exec-out screencap -p > "$OUT/$f"; echo "shot $f" >> "$STEPS"; }
+shot() { n=$((n + 1)); local f; f=$(printf "%02d-%s.png" "$n" "$1"); timeout 30 adb exec-out screencap -p > "$OUT/$f"; echo "shot $f" >> "$STEPS"; }
 # find an element by its text or accessibility label (a trailing * matches a prefix); prints "x y"
 find() {
   local label="$1" max="${2:-3}" tries=0 xy=""
@@ -40,11 +40,11 @@ PY
 tap() {
   local xy; xy=$(find "$1" "${2:-3}")
   if [ -z "$xy" ]; then echo "MISS $1" >> "$STEPS"; return 1; fi
-  adb shell input tap $xy; echo "tap $1 @ $xy" >> "$STEPS"; return 0
+  timeout 20 adb shell input tap $xy; echo "tap $1 @ $xy" >> "$STEPS"; return 0
 }
 # let the freshly booted system settle (media scan, package jobs) before the 3D app starts
 sleep 45
-adb shell am start -n "$PKG/.MainActivity"
+timeout 30 adb shell am start -n "$PKG/.MainActivity"
 sleep 25; shot acilis
 # wait (up to ~3 min) for the welcome card, then continue as a guest
 find "Misafir olarak giriş yap" 15 > /dev/null; sleep 8; shot karsilama; mem karsilama
@@ -56,19 +56,19 @@ tap "Buketi sar"; sleep 10; shot sarildi
 tap "Süs"; sleep 4; shot sus
 tap "Not"; sleep 4; shot not
 tap "Gönder"; sleep 10; shot gonder
-adb shell input keyevent KEYCODE_BACK; sleep 4
-adb exec-out screencap -p > /dev/null
+timeout 20 adb shell input keyevent KEYCODE_BACK; sleep 4
+timeout 30 adb exec-out screencap -p > /dev/null
 tap "Bahçe"; sleep 35; shot bahce; mem bahce
 tap "Altın:*"; sleep 6; shot altin
-adb shell input keyevent KEYCODE_BACK; sleep 3
+timeout 20 adb shell input keyevent KEYCODE_BACK; sleep 3
 tap "Giriş yap ya da hesap oluştur"; sleep 5; shot hesap
-adb shell input keyevent KEYCODE_BACK; sleep 3
-adb shell input keyevent KEYCODE_BACK; sleep 8; shot geri-atolye
+timeout 20 adb shell input keyevent KEYCODE_BACK; sleep 3
+timeout 20 adb shell input keyevent KEYCODE_BACK; sleep 8; shot geri-atolye
 # app to the background and back: the 3D view must come back
-adb shell input keyevent KEYCODE_HOME; sleep 6
-adb shell am start -n "$PKG/.MainActivity"; sleep 10; shot geri-gelince
+timeout 20 adb shell input keyevent KEYCODE_HOME; sleep 6
+timeout 30 adb shell am start -n "$PKG/.MainActivity"; sleep 10; shot geri-gelince
 # a bouquet link that does not exist: the app opens it and shows the friendly error
-adb shell am start -a android.intent.action.VIEW -d "https://demet.furkansahin.me/b/yokboylebirbuket" "$PKG"; sleep 15; shot link-hatali
+timeout 30 adb shell am start -a android.intent.action.VIEW -d "https://demet.furkansahin.me/b/yokboylebirbuket" "$PKG"; sleep 15; shot link-hatali
 kill $LOGPID 2>/dev/null; gzip -f "$OUT/logcat-full.txt"
 adb logcat -d -v brief ReactNativeJS:V ReactNative:V AndroidRuntime:E '*:S' > "$OUT/log.txt" || true
 adb logcat -d -v brief '*:W' | tail -n 600 > "$OUT/log-warn.txt" || true

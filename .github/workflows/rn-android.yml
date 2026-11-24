@@ -135,6 +135,10 @@ jobs:
           working-directory: .
           script: bash app/scripts/emulator-test.sh out
 
+      - name: Boş dosyaları ayıkla
+        if: always()
+        run: find out -type f -size 0 -delete 2>/dev/null; ls -la out || true
+
       - name: Sonuçları yükle (rn-test)
         if: always()
         uses: softprops/action-gh-release@v2
