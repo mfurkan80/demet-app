@@ -29,10 +29,15 @@ export const Stage = memo(({ width, height, dark, onReady, onError, onTap, inset
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       const tier = Math.max(0, Math.min(3, +((await AsyncStorage.getItem(QKEY).catch(() => null)) || 0)));
       const half = canHalfFloat(gl);
+      // a software GL driver (emulators, some broken drivers) cannot keep up: lowest quality and a low frame rate,
+      // so the rest of the phone stays responsive
+      let soft = false;
+      try { soft = /swiftshader|llvmpipe|software|softpipe/i.test(String(gl.getParameter(gl.RENDERER) || '')); } catch (e) {}
+      if (soft) console.log('DEMET software GL: low frame rate');
       const renderer = makeRenderer(gl);
       const T = await loadPack(require('../../assets/models/studio.json'), require('../../assets/models/studio.bin'));
       const e = createEngine({
-        gl, renderer, T, width, height, dark, halfFloat: half, tier, reduceMotion: !!app.reduceMotion,
+        gl, renderer, T, width, height, dark, halfFloat: half, tier: soft ? 3 : tier, maxFps: soft ? 8 : 60, reduceMotion: !!app.reduceMotion,
         on: {
           hint: show => { if (ui.hint !== !!show) { ui.hint = !!show; emit(); } },
           error: err => console.warn('DEMET frame', err && err.message),

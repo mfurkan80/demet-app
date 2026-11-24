@@ -10,7 +10,7 @@ import { TIE, PHI, FLOWERS, FILLERS, ALL, CENTER, STEMC, LEAFC, modelOf, PAPER_S
 import { app, online, mains, fills, gardenEntries } from '../state/store';
 import { toName, fromName, genitive, fmtShort } from '../state/text';
 
-export const createEngine = ({ gl, renderer, T, TL: TL0, width, height, dark = false, reduceMotion = false, tier: tier0 = 0, halfFloat = true, on = {} }) => {
+export const createEngine = ({ gl, renderer, T, TL: TL0, width, height, dark = false, reduceMotion = false, tier: tier0 = 0, halfFloat = true, maxFps = 60, on = {} }) => {
 const TL = TL0 || {};
 /* ======================================================================= renderer + scenes */
 // The screen is width x height layout points; the drawing buffer is gl.drawingBufferWidth/Height pixels.
@@ -1318,7 +1318,7 @@ const tick = () => {
   // a sheet covers the scene, or a calm bouquet on a slow phone: keep the simulation running, draw at ~30 fps
   const cov = covered && !flight && !(view === 'garden' && gFocus);
   const calm = view === 'studio' && studioCalm && now() - lastInput > 2500;
-  skipDraw = (cov || calm) && t - lastDraw < 1 / 30 - 0.002;
+  skipDraw = ((cov || calm) && t - lastDraw < 1 / 30 - 0.002) || (maxFps < 60 && t - lastDraw < 1 / maxFps - 0.002);
   let drew = false;
   try {
     if (view === 'garden' && gBuilt) drew = stepGarden(dt, t);

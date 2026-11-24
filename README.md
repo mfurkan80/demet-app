@@ -81,8 +81,11 @@ Giriş denemeleri 15 dakikada 8 ile sınırlı; oturum 12 saat geçerli ve sunuc
 
 ## Mobil uygulama
 
-iOS ve Android uygulaması `mobile/` klasöründe (Capacitor). Kurulum, Firebase bildirimleri, RevenueCat ile App Store /
-Google Play altın satışı ve mağazaya yükleme adımları: [mobile/MOBILE.md](mobile/MOBILE.md).
+Telefon uygulaması `app/` klasöründe: React Native (Expo), 3D sahne three.js ile doğrudan telefonun GPU'sunda çizilir
+(expo-gl), arayüz tamamen yerel bileşenlerden oluşur. Derleme, emülatör testi ve Play Store paketi GitHub Actions'ta
+(`.github/workflows/rn-android.yml`). Secret'lar, mağaza kaydı metinleri ve veri güvenliği notları: [app/STORE.md](app/STORE.md).
+
+Eski WebView (Capacitor) uygulaması `mobile/` klasöründe duruyor; artık yalnızca elle derlenir.
 
 Uygulama için sunucuya eklenenler:
 

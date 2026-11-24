@@ -42,6 +42,8 @@ tap() {
   if [ -z "$xy" ]; then echo "MISS $1" >> "$STEPS"; return 1; fi
   adb shell input tap $xy; echo "tap $1 @ $xy" >> "$STEPS"; return 0
 }
+# let the freshly booted system settle (media scan, package jobs) before the 3D app starts
+sleep 45
 adb shell am start -n "$PKG/.MainActivity"
 sleep 25; shot acilis
 # wait (up to ~3 min) for the welcome card, then continue as a guest
