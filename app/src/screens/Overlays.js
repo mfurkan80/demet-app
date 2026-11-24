@@ -35,7 +35,7 @@ export const Loading = ({ on, text = 'Çiçekler hazırlanıyor…', sub = 'Mode
   if (!shown) return null;
   const colors = garden ? t.gardenSky : [t.blush, t.mist];
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, { opacity: v, zIndex: 20 }]} pointerEvents={on ? 'auto' : 'none'}>
+    <Animated.View style={[StyleSheet.absoluteFill, { opacity: v, zIndex: 20, elevation: 25 }]} pointerEvents={on ? 'auto' : 'none'}>
       <LinearGradient colors={colors} style={[StyleSheet.absoluteFill, st.center]}>
         <Animated.View style={{ transform: [{ scale: spin.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.08, 1] }) }], marginBottom: 14 }}>
           <Image source={THUMB.rose} style={{ width: 72, height: 72 }} />
@@ -133,7 +133,7 @@ export const Gift = ({ top, bottom }) => {
   const seal = (d.sign || 'D').trim().charAt(0).toLocaleUpperCase('tr');
   const from = d.mine ? 'Gönderdiğin buket' : d.sign ? `${fromName(d.sign)} sana` : 'Sana';
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, st.center, { zIndex: 12, paddingTop: top, paddingBottom: bottom, opacity: v, transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }]}>
+    <Animated.View style={[StyleSheet.absoluteFill, st.center, { zIndex: 12, elevation: 20, paddingTop: top, paddingBottom: bottom, opacity: v, transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }]}>
       <LinearGradient colors={[alpha(t.blush, 0.92), alpha(t.mist, 0.96)]} style={StyleSheet.absoluteFill} />
       <Animated.View style={[st.env, { backgroundColor: t.surface, borderColor: t.line, transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}>
         <View style={[st.envIn, { borderColor: alpha(t.accent, 0.3) }]} pointerEvents="none" />
@@ -166,7 +166,7 @@ export const Burst = () => {
   }, [ui.burst]);
   if (!hearts.length) return null;
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 40 }]}>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 40, elevation: 35 }]}>
       {hearts.map(h => (
         <Animated.View key={h.id} style={{ position: 'absolute', left: `${h.x}%`, bottom: height * 0.3, opacity: h.v.interpolate({ inputRange: [0, 0.1, 0.8, 1], outputRange: [0, 1, 1, 0] }),
           transform: [{ translateY: h.v.interpolate({ inputRange: [0, 1], outputRange: [0, -height * 0.55] }) }, { translateX: h.v.interpolate({ inputRange: [0, 1], outputRange: [0, h.dx] }) }, { rotate: `${h.r}deg` }] }}>
@@ -190,7 +190,7 @@ export const Welcome = ({ top, bottom }) => {
   useEffect(() => { if (ui.welcome) setStep('intro'); }, [ui.welcome]);
   if (!shown) return null;
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 15, opacity: v }]} pointerEvents={ui.welcome ? 'box-none' : 'none'}>
+    <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 15, elevation: 15, opacity: v }]} pointerEvents={ui.welcome ? 'box-none' : 'none'}>
       {ui.gardenLoading ? <LinearGradient colors={t.gardenSky} style={StyleSheet.absoluteFill} pointerEvents="none" /> : null}
       <LinearGradient colors={[alpha(t.surface, 0.85), alpha(t.surface, 0)]} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: top + 130 }} pointerEvents="none" />
       <View style={[st.whead, { top: top + 8 }]} pointerEvents="none">

@@ -73,7 +73,7 @@ const SheetFrame = ({ s }) => {
   const scrimSt = useAnimatedStyle(() => ({ opacity: fade.value }));
   const { C, props } = s;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <View style={[StyleSheet.absoluteFill, st.layer]} pointerEvents="box-none">
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: t.scrim }, scrimSt]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} accessibilityLabel="Kapat" />
       </Animated.View>
@@ -131,8 +131,9 @@ export const ToastHost = ({ top }) => {
 
 const st = StyleSheet.create({
   sheet: { position: 'absolute', left: 0, right: 0, borderTopLeftRadius: R.lg + 4, borderTopRightRadius: R.lg + 4, elevation: 24, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: -6 } },
+  layer: { zIndex: 30, elevation: 30 },
   head: { height: 30, alignItems: 'center', justifyContent: 'center' },
   grab: { width: 42, height: 5, borderRadius: 3 },
   x: { position: 'absolute', top: 12, right: 14, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
-  toast: { position: 'absolute', alignSelf: 'center', maxWidth: '88%', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, zIndex: 50, elevation: 30 },
+  toast: { position: 'absolute', alignSelf: 'center', maxWidth: '88%', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, zIndex: 50, elevation: 40 },
 });

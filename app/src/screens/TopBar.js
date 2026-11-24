@@ -44,7 +44,7 @@ export const TopBar = ({ top, onGold, onMe, narrow }) => {
     <View style={[st.bar, { paddingTop: top }]} pointerEvents="box-none">
       <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
         <Text style={[st.title, { color: t.ink, fontSize: garden ? 28 : 30 }, shadow]} numberOfLines={1}>{title}</Text>
-        {!(garden && ui.welcome) ? <Text style={[st.sub, { color: t.ink2 }, shadow]} numberOfLines={1}>{sub}</Text> : null}
+        {!garden ? <Text style={[st.sub, { color: t.ink2 }, shadow]} numberOfLines={1}>{sub}</Text> : null}
       </View>
       {!hideActions ? (
         <View style={st.actions}>
