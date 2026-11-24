@@ -137,7 +137,7 @@ jobs:
 
       - name: Boş dosyaları ayıkla
         if: always()
-        run: find out -type f -size 0 -delete 2>/dev/null; ls -la out || true
+        run: find "$GITHUB_WORKSPACE/out" -type f -size 0 -delete 2>/dev/null || true
 
       - name: Sonuçları yükle (rn-test)
         if: always()

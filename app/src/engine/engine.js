@@ -1330,7 +1330,7 @@ const tick = () => {
   const cap = Math.min(maxFps, cov ? 15 : uiBusy ? 20 : calm ? 30 : sQ.tier >= 1 && idle ? 40 : 60);
   skipDraw = cap < 60 && t - lastDraw < 1 / cap - 0.002;
   fullRate = cap >= 60;
-  const t0 = now();
+  const t0 = now(); renderer.info.autoReset = false; renderer.info.reset();
   let drew = false;
   try {
     if (view === 'garden' && gBuilt) drew = stepGarden(dt, t);
