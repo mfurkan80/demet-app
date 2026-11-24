@@ -24,7 +24,8 @@ const presenter = new Presenter(renderer, bufW(), bufH(), { halfFloat });
 let gDensity = 1.5;
 const density = () => (view === 'garden' ? gDensity : SQ_DPR[sQ.tier]);
 const applyDensity = () => presenter.setScale(Math.min(1, density() * viewW / Math.max(1, bufW())));
-let covered = false; // a sheet covers the scene: draw at most 30 fps
+let covered = false; // a sheet covers the scene: draw at most 15 fps
+let uiBusy = false; // the user is scrolling the panel: leave the phone's time to the interface
 const pmrem = new THREE.PMREMGenerator(renderer);
 let envTex = null;
 try { envTex = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture; } catch (e) { envTex = null; }
@@ -225,6 +226,9 @@ const makeNode = (k, model) => {
   return n;
 }
 const dropNode = (k) => { const n = nodes.get(k); if (n && !n.dying) { n.dying = true; n.tgt.s = 0; n.tgt.lift = n.cur.lift + 0.25; } }
+// the parts inside a model never move relative to the model itself: compute their matrices once
+// instead of every frame (three.js otherwise rebuilds every matrix each frame, which is slow in Hermes)
+const freeze = root => { root.traverse(o => { if (o !== root) { o.updateMatrix(); o.matrixAutoUpdate = false; } }); return root; };
 const applyNode = (n) => {
   n.az.rotation.y = n.cur.az; n.tilt.rotation.z = -n.cur.tilt; n.inner.rotation.y = n.cur.spin;
   n.inner.position.y = -TIE + n.cur.lift; n.az.scale.setScalar(Math.max(0.001, n.cur.s));
@@ -276,7 +280,7 @@ const syncFlowers = () => {
   for (const it of app.S.items) {
     const k = 'i' + it.id;
     if (nodes.has(k)) continue;
-    const model = T[modelOf(it.type)].clone(true);
+    const model = freeze(T[modelOf(it.type)].clone(true));
     paint(model, it.type, it.color);
     const n = makeNode(k, model);
     n.id = it.id; n.type = it.type; n.fresh = true;
@@ -552,7 +556,7 @@ const beds = new THREE.Group(), gWorld = new THREE.Group(), gFxG = new THREE.Gro
 gScene.add(gWorld, beds, gFxG);
 let gBuilt = false, gFocus = null, selRing = null, gWorldKey = '', gBase = null, gShadowDirty = true;
 // phones get fewer grass blades and a lower pixel ratio in the garden; a slow device steps down once more by itself
-const gQ = { dpr: sQ.tier >= 2 ? 1.1 : 1.5, grass: sQ.tier >= 2 ? 7000 : 12000, frames: [], checked: 0 };
+const gQ = { dpr: sQ.tier >= 2 ? 1.1 : sQ.tier >= 1 ? 1.3 : 1.5, grass: sQ.tier >= 2 ? 7000 : sQ.tier >= 1 ? 9000 : 12000, frames: [], checked: 0 };
 gDensity = gQ.dpr;
 const gBox = { z0: -2.6, z1: -0.5, cz: -1.5 };
 const gU = { time: { value: 0 }, scale: { value: 400 } };
@@ -572,6 +576,7 @@ const pmat = (part, hex) => {
   mm.name = part; matCache.set(k, mm); return mm;
 }
 const dress = (model, over = {}) => {
+  freeze(model);
   model.traverse(o => {
     if (!o.isMesh) return;
     const part = o.userData.part || (o.userData.part = o.material.name);
@@ -1175,9 +1180,10 @@ const setStudioTier = tier => {
   applyDensity();
 }
 const draw = (sc, cam) => presenter.render(sc, cam, { exposure: renderer.toneMappingExposure, fxaa: true });
-let skipDraw = false;
+let skipDraw = false, fullRate = true;
 const stepStudio = (dt, t) => {
-  studioWatch(dt);
+  // quality is judged only on full-rate frames (while the user turns the bouquet)
+  if (fullRate) studioWatch(dt);
   const k = 1 - Math.pow(0.0015, dt);
   let moving = !!flight || bursts.length > 0;
   for (const [nk, n] of nodes) {
@@ -1251,10 +1257,10 @@ const stepStudio = (dt, t) => {
     if (Math.abs(d - len) > 0.002) camera.position.copy(controls.target).add(off.setLength(len + (d - len) * k * 0.6));
   }
   controls.update(dt);
-  studioCalm = !moving && sQ.tier > 0;
+  studioCalm = !moving;
   if (skipDraw) return false;
   renderer.shadowMap.autoUpdate = false;
-  if (moving || ++shadowTick >= 6) { renderer.shadowMap.needsUpdate = true; shadowTick = 0; }
+  if (++shadowTick >= (moving ? (sQ.tier >= 1 ? 2 : 1) : 6)) { renderer.shadowMap.needsUpdate = true; shadowTick = 0; }
   draw(scene, camera);
   return true;
 }
@@ -1273,7 +1279,7 @@ const watchSpeed = dt => {
   if (gQ.checked === 2) { gSun.shadow.mapSize.set(1024, 1024); if (gSun.shadow.map) { gSun.shadow.map.dispose(); gSun.shadow.map = null; } gShadowDirty = true; }
 }
 const stepGarden = (dt, t) => {
-  watchSpeed(dt);
+  if (fullRate) watchSpeed(dt);
   gU.time.value = reduceMotion ? 0 : t;
   gU.scale.value = presenter.height / (2 * Math.tan(THREE.MathUtils.degToRad(gCam.fov / 2)));
   const tg = gControls.target;
@@ -1316,18 +1322,35 @@ const tick = () => {
   if (!running) return;
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   // a sheet covers the scene, or a calm bouquet on a slow phone: keep the simulation running, draw at ~30 fps
+  // frame budget: full rate only while the user touches the scene or something big moves;
+  // a slow idle turn, the garden breeze or decorations look the same at 30 fps and leave the phone free for the interface
+  const idle = now() - lastInput > 1200;
   const cov = covered && !flight && !(view === 'garden' && gFocus);
-  const calm = view === 'studio' && studioCalm && now() - lastInput > 2500;
-  skipDraw = ((cov || calm) && t - lastDraw < 1 / 30 - 0.002) || (maxFps < 60 && t - lastDraw < 1 / maxFps - 0.002);
+  const calm = idle && !flight && (view === 'studio' ? studioCalm : !gFocus);
+  const cap = Math.min(maxFps, cov ? 15 : uiBusy ? 20 : calm ? 30 : sQ.tier >= 1 && idle ? 40 : 60);
+  skipDraw = cap < 60 && t - lastDraw < 1 / cap - 0.002;
+  fullRate = cap >= 60;
+  const t0 = now();
   let drew = false;
   try {
     if (view === 'garden' && gBuilt) drew = stepGarden(dt, t);
     else drew = stepStudio(dt, t);
   } catch (e) { on.error && on.error(e); }
-  if (drew) { lastDraw = t; gl.endFrameEXP(); if (!firstFrame) { firstFrame = true; on.ready && on.ready(); } }
+  if (drew) {
+    lastDraw = t; gl.endFrameEXP();
+    perf.frames++; perf.js += now() - t0; perf.calls = renderer.info.render.calls;
+    if (!firstFrame) { firstFrame = true; on.ready && on.ready(); }
+  }
+  if (now() - perf.since > 5000) {
+    const s = (now() - perf.since) / 1000;
+    perf.last = { fps: Math.round(perf.frames / s), jsMs: perf.frames ? +(perf.js / perf.frames).toFixed(1) : 0, calls: perf.calls, tier: view === 'garden' ? 'g' + gQ.checked : sQ.tier };
+    perf.frames = 0; perf.js = 0; perf.since = now();
+    on.perf && on.perf(perf.last);
+  }
   raf = requestAnimationFrame(tick);
 }
 let firstFrame = false;
+const perf = { frames: 0, js: 0, calls: 0, since: Date.now(), last: null };
 
 /* ---- snapshot of the current bouquet (square JPEG for the history list and the server) */
 let snapPresenter = null;
@@ -1405,6 +1428,8 @@ const api = {
   },
   setDark(d) { if (darkMode === !!d) return; darkMode = !!d; applyTheme(); },
   setCovered(c) { covered = !!c; if (!c) { sQ.skip = Math.max(sQ.skip, 30); } },
+  setUiBusy(b) { uiBusy = !!b; if (!b) sQ.skip = Math.max(sQ.skip, 20); },
+  get perf() { return perf.last; },
   setWelcome(open) { welcomeOpen = !!open; welcomeFrame(); },
   // touch input
   input() { lastInput = now(); },

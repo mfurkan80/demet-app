@@ -12,7 +12,7 @@ import { app, load, useApp } from './src/state/store';
 import { useTheme } from './src/ui/theme';
 import { SheetHost, ToastHost, setCoverListener, sheetOpen, closeSheet, useKeyboard } from './src/ui/sheet';
 import { Stage } from './src/screens/Stage';
-import { TopBar, GardenSwitch } from './src/screens/TopBar';
+import { TopBar, GardenSwitch, PerfHud } from './src/screens/TopBar';
 import { Panel } from './src/screens/Panel';
 import { Loading, Empty, Hint, Inbox, Offline, Gift, Burst, Welcome } from './src/screens/Overlays';
 import { openShop, openAccount, openEntry, openPair } from './src/screens/sheets';
@@ -86,6 +86,7 @@ const Main = () => {
       <Burst />
       <SheetHost />
       <ToastHost top={top + 52} />
+      <PerfHud top={top + 100} />
     </View>
   );
 };

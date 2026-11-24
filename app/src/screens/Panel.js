@@ -40,8 +40,8 @@ const Tabs = () => {
 };
 
 /* ---------- flowers / greens */
-const FCard = memo(({ type, f, n, full, active, w, t, onAdd, onMinus }) => {
-  const p = priceOf(type);
+const FCard = memo(({ type, f, n, full, active, w, t }) => {
+  const p = priceOf(type), onAdd = () => addItem(type), onMinus = () => removeItem(type);
   return (
     <View style={{ width: w }}>
       <Tap onPress={onAdd} disabled={full} scaleTo={0.95} accessibilityLabel={`Bir dal ${lower(f.name)} ekle`}
@@ -91,8 +91,7 @@ const FlowersPane = ({ isF, t, cardW }) => {
       <View style={st.fgrid}>
         {Object.entries(types).map(([type, ff]) => (
           <FCard key={type} type={type} f={ff} n={count(type)} t={t} w={cardW} active={type === a}
-            full={isMain(type) ? m >= MAX_MAIN : fills().length >= MAX_FILL}
-            onAdd={() => addItem(type)} onMinus={() => removeItem(type)} />
+            full={isMain(type) ? m >= MAX_MAIN : fills().length >= MAX_FILL} />
         ))}
       </View>
       {isF && m && m % 2 === 0 ? <Tip>Çiçek genelde tek sayıda verilir. Buketinde şu an {m} dal çiçek var.</Tip> : null}
@@ -356,6 +355,12 @@ const Foot = ({ t, bottom }) => {
   );
 };
 
+/* ---------- the panel: while the list scrolls, the 3D scene slows down so scrolling stays smooth */
+let busyTimer;
+const busy = () => { clearTimeout(busyTimer); E.cur && E.cur.setUiBusy(true); };
+const idle = () => { clearTimeout(busyTimer); E.cur && E.cur.setUiBusy(false); };
+const idleSoon = () => { clearTimeout(busyTimer); busyTimer = setTimeout(idle, 400); };
+
 /* ---------- the panel */
 export const Panel = ({ height, bottom, kb = 0 }) => {
   const t = useTheme(), { width } = useWindowDimensions();
@@ -372,6 +377,7 @@ export const Panel = ({ height, bottom, kb = 0 }) => {
     <View style={[st.panel, { height, bottom: kb, backgroundColor: t.surface, borderColor: t.line }]}>
       <Tabs />
       <ScrollView key={key} style={{ flex: 1 }} contentContainerStyle={st.pane} keyboardShouldPersistTaps="handled" overScrollMode="never"
+        onScrollBeginDrag={busy} onScrollEndDrag={idleSoon} onMomentumScrollBegin={busy} onMomentumScrollEnd={idle}
         showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag">
         {pane}
       </ScrollView>

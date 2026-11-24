@@ -31,18 +31,22 @@ export const Stage = memo(({ width, height, dark, onReady, onError, onTap, inset
       const half = canHalfFloat(gl);
       // a software GL driver (emulators, some broken drivers) cannot keep up: lowest quality and a low frame rate,
       // so the rest of the phone stays responsive
-      let soft = false;
-      try { soft = /swiftshader|llvmpipe|software|softpipe/i.test(String(gl.getParameter(gl.RENDERER) || '')); } catch (e) {}
-      if (soft) console.log('DEMET software GL: low frame rate');
+      let gpu = '';
+      try { gpu = String(gl.getParameter(gl.RENDERER) || ''); } catch (e) {}
+      const soft = /swiftshader|llvmpipe|software|softpipe/i.test(gpu);
+      // entry-level phone GPUs (e.g. Redmi Note 9: Mali-G52 MC2) start one quality step lower
+      const low = /Mali-(G31|G51|G52|G57|G68|T\d)|Adreno \(TM\) ([1-5]\d\d|6[0-1]\d)\b|PowerVR|GE8\d\d/i.test(gpu);
+      console.log(`DEMET gpu "${gpu}"${soft ? ' software' : low ? ' entry-level' : ''}`);
       const renderer = makeRenderer(gl);
       const T = await loadPack(require('../../assets/models/studio.json'), require('../../assets/models/studio.bin'));
       const e = createEngine({
-        gl, renderer, T, width, height, dark, halfFloat: half, tier: soft ? 3 : tier, maxFps: soft ? 8 : 60, reduceMotion: !!app.reduceMotion,
+        gl, renderer, T, width, height, dark, halfFloat: half, tier: soft ? 3 : low ? Math.max(1, tier) : tier, maxFps: soft ? 8 : 60, reduceMotion: !!app.reduceMotion,
         on: {
           hint: show => { if (ui.hint !== !!show) { ui.hint = !!show; emit(); } },
           error: err => console.warn('DEMET frame', err && err.message),
           ready: () => onReady && onReady(),
           tier: t => { AsyncStorage.setItem(QKEY, String(t)).catch(() => {}); },
+          perf: p => { console.log(`DEMET perf fps=${p.fps} js=${p.jsMs}ms calls=${p.calls} tier=${p.tier}`); if (ui.perf) { ui.perfStat = p; emit(); } },
         },
       });
       eng.current = e;

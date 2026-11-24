@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme, F, alpha } from '../ui/theme';
 import { Coin, IGarden, IHeart, IStudio } from '../ui/icons';
 import { Tap } from '../ui/kit';
-import { app, gardenEntries, isGuest, mains, fills, online } from '../state/store';
+import { app, emit, gardenEntries, isGuest, mains, fills, online } from '../state/store';
 import { fmt, fromName } from '../state/text';
 import { ui, toggleView, setGardenMode } from '../ctl';
 
@@ -23,6 +23,23 @@ const useCount = to => {
   return v;
 };
 
+// five quick taps on the title show the performance numbers (for testing on a phone)
+let taps = [];
+const titleTap = () => {
+  const t = Date.now(); taps = [...taps.filter(x => t - x < 2000), t];
+  if (taps.length >= 5) { taps = []; ui.perf = !ui.perf; emit(); }
+};
+export const PerfHud = ({ top }) => {
+  const t = useTheme(), p = ui.perfStat;
+  if (!ui.perf) return null;
+  return (
+    <View pointerEvents="none" style={[st.hud, { top, backgroundColor: alpha(t.ink, 0.82) }]}>
+      <Text style={{ fontFamily: F.semi, fontSize: 12, color: t.surface, fontVariant: ['tabular-nums'] }}>
+        {p ? `${p.fps} fps · JS ${p.jsMs} ms · ${p.calls} çizim · kalite ${p.tier}` : 'ölçülüyor…'}
+      </Text>
+    </View>
+  );
+};
 export const TopBar = ({ top, onGold, onMe, narrow }) => {
   const t = useTheme();
   const v = app.viewing, garden = ui.view === 'garden', guest = isGuest();
@@ -42,10 +59,10 @@ export const TopBar = ({ top, onGold, onMe, narrow }) => {
   if (ui.welcome) return null;
   return (
     <View style={[st.bar, { paddingTop: top }]} pointerEvents="box-none">
-      <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
+      <Pressable style={{ flex: 1, minWidth: 0 }} onPress={titleTap} accessible={false}>
         <Text style={[st.title, { color: t.ink, fontSize: garden ? 28 : 30 }, shadow]} numberOfLines={1}>{title}</Text>
         {!garden ? <Text style={[st.sub, { color: t.ink2 }, shadow]} numberOfLines={1}>{sub}</Text> : null}
-      </View>
+      </Pressable>
       {!hideActions ? (
         <View style={st.actions}>
           <Tap onPress={onGold} hapticKind="select" accessibilityLabel={`Altın: ${gold}`} style={[...pill, { borderColor: t.goldLine, backgroundColor: alpha(t.goldSoft, 0.92) }]}>
@@ -96,6 +113,7 @@ const st = StyleSheet.create({
   pill: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 38, paddingLeft: 10, paddingRight: 13, borderRadius: 999, borderWidth: 1 },
   pillT: { fontFamily: F.bold, fontSize: 14.5, fontVariant: ['tabular-nums'] },
   dot: { position: 'absolute', top: 2, right: 2, width: 10, height: 10, borderRadius: 5, borderWidth: 2 },
+  hud: { position: 'absolute', left: 16, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, zIndex: 60, elevation: 50 },
   gs: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', gap: 2, padding: 4, borderRadius: 999, borderWidth: 1, zIndex: 4, elevation: 3 },
   gsB: { height: 34, paddingHorizontal: 16, borderRadius: 999, flexDirection: 'row', alignItems: 'center', gap: 6 },
 });
