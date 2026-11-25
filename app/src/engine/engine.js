@@ -421,7 +421,7 @@ const syncPicks = () => {
 }
 
 /* ---- teddy (sits on the front lip of the wrap) */
-const teddyHolder = new THREE.Group(); bouquet.add(teddyHolder);
+const teddyHolder = new THREE.Group(); teddyHolder.userData.noBake = true; bouquet.add(teddyHolder);
 let teddyModel, teddyRing, teddyS = 0, teddyV = 0;
 const buildTeddy = () => {
   teddyModel = T.teddy.clone(true); paint(teddyModel, 'teddy', '#B88458', { ribbon: '#C8325A' });
@@ -454,7 +454,7 @@ const makeButterfly = (color) => {
   const m = T.butterfly.clone(true); paint(m, 'butterfly', color, { wing: color });
   const wings = [];
   for (const nm of ['wingL', 'wingR']) { const w = m.getObjectByName(nm); if (!w) continue; const pivot = new THREE.Group(); w.parent.add(pivot); pivot.add(w); wings.push({ pivot, side: nm === 'wingR' ? 1 : -1 }); }
-  const holder = new THREE.Group(); m.rotation.y = Math.PI; m.scale.setScalar(2.1); holder.add(m);
+  const holder = new THREE.Group(); holder.userData.noBake = true; m.rotation.y = Math.PI; m.scale.setScalar(2.1); holder.add(m);
   return { holder, wings, phase: Math.random() * 10 };
 }
 const syncButterflies = () => {
@@ -538,7 +538,111 @@ const warmShaders = async () => {
   bouquet.remove(g);
   wrapGroup.visible = wrapVis; for (const o of hidden) o.visible = false;
 }
+/* ---- baking: once the bouquet stands still, its parts are merged by material into a few meshes.
+   Each mesh costs a draw call and a lot of JavaScript per frame (twice with shadows); a finished bouquet of
+   fifty parts becomes a handful. The merge runs one material per frame so it never stalls the screen, and
+   anything that changes the bouquet brings the live parts back at once. */
+const BAKE_ATTRS = new Set(['position', 'normal', 'uv', 'color']);
+const bakeGroup = new THREE.Group(); bakeGroup.userData.noBake = true; bouquet.add(bakeGroup);
+let bake = null; // { phase: 'job' | 'done', groups, roots, hidden, built, i }
+const bakeKey = o => {
+  const g = o.geometry;
+  if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || Array.isArray(o.material) || !g || !g.attributes.position) return null;
+  if (g.morphAttributes && Object.keys(g.morphAttributes).length) return null;
+  const names = Object.keys(g.attributes).sort();
+  if (names.some(n => !BAKE_ATTRS.has(n))) return null;
+  return `${o.material.uuid}|${names.join(',')}|${o.castShadow ? 1 : 0}${o.receiveShadow ? 1 : 0}|${o.renderOrder}|${o.frustumCulled ? 1 : 0}`;
+};
+const isDrawable = o => o.isMesh || o.isSprite || o.isPoints || o.isLine;
+const unbake = () => {
+  if (!bake) return;
+  if (bake.phase === 'done') {
+    for (const c of bake.roots) bouquet.add(c);
+    for (const o of bake.hidden) o.visible = true;
+    for (const m of [...bakeGroup.children]) { bakeGroup.remove(m); m.geometry.dispose(); }
+  } else for (const m of bake.built) m.geometry.dispose();
+  bake = null;
+};
+const startBake = () => {
+  bouquet.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(bouquet.matrixWorld).invert();
+  const groups = new Map(), roots = [], hidden = [];
+  for (const c of bouquet.children) {
+    if (c === bakeGroup || !c.visible || c.userData.noBake) continue;
+    // a part can leave the scene graph entirely only if everything drawable in it gets merged
+    let whole = true; const found = [];
+    const walk = (o, vis) => {
+      if (o.userData.noBake) { whole = false; return; }
+      const v = vis && o.visible;
+      if (isDrawable(o)) {
+        const k = v ? bakeKey(o) : null;
+        if (k) found.push([k, o]); else if (v) whole = false;
+      }
+      for (const ch of o.children) walk(ch, v);
+    };
+    walk(c, true);
+    if (!found.length) continue;
+    if (whole) roots.push(c);
+    for (const [k, o] of found) {
+      let g = groups.get(k); if (!g) groups.set(k, g = { mat: o.material, cast: o.castShadow, recv: o.receiveShadow, order: o.renderOrder, culled: o.frustumCulled, parts: [] });
+      g.parts.push({ o, m: new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld) });
+      if (!whole) hidden.push(o);
+    }
+  }
+  // merging single parts that would stay in the scene anyway gains nothing
+  const list = [...groups.values()].filter(g => g.parts.length > 1 || roots.includes(rootOf(g.parts[0].o)));
+  const keep = new Set(list.flatMap(g => g.parts.map(p => p.o)));
+  bake = { phase: 'job', groups: list, roots, hidden: hidden.filter(o => keep.has(o)), built: [], i: 0 };
+};
+const rootOf = o => { while (o.parent && o.parent !== bouquet) o = o.parent; return o; };
+const _nm = new THREE.Matrix3(), _bv = new THREE.Vector3();
+const mergeParts = parts => {
+  const names = Object.keys(parts[0].o.geometry.attributes);
+  let nv = 0, ni = 0;
+  for (const { o } of parts) { const g = o.geometry; nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+  const out = {}, I = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+  for (const n of names) out[n] = new Float32Array(nv * parts[0].o.geometry.attributes[n].itemSize);
+  let ov = 0, oi = 0;
+  for (const { o, m } of parts) {
+    const g = o.geometry, cnt = g.attributes.position.count;
+    _nm.getNormalMatrix(m);
+    for (const n of names) {
+      const a = g.attributes[n], sz = a.itemSize, dst = out[n], base = ov * sz;
+      for (let i = 0; i < cnt; i++) {
+        if (n === 'position') { _bv.set(a.getX(i), a.getY(i), a.getZ(i)).applyMatrix4(m); dst[base + i * 3] = _bv.x; dst[base + i * 3 + 1] = _bv.y; dst[base + i * 3 + 2] = _bv.z; }
+        else if (n === 'normal') { _bv.set(a.getX(i), a.getY(i), a.getZ(i)).applyMatrix3(_nm).normalize(); dst[base + i * 3] = _bv.x; dst[base + i * 3 + 1] = _bv.y; dst[base + i * 3 + 2] = _bv.z; }
+        else { dst[base + i * sz] = a.getX(i); if (sz > 1) dst[base + i * sz + 1] = a.getY(i); if (sz > 2) dst[base + i * sz + 2] = a.getZ(i); if (sz > 3) dst[base + i * sz + 3] = a.getW(i); }
+      }
+    }
+    if (g.index) { const idx = g.index.array; for (let k = 0; k < idx.length; k++) I[oi + k] = idx[k] + ov; oi += idx.length; }
+    else { for (let k = 0; k < cnt; k++) I[oi + k] = k + ov; oi += cnt; }
+    ov += cnt;
+  }
+  const geo = new THREE.BufferGeometry();
+  for (const n of names) geo.setAttribute(n, new THREE.BufferAttribute(out[n], parts[0].o.geometry.attributes[n].itemSize));
+  geo.setIndex(new THREE.BufferAttribute(I, 1)); geo.computeBoundingSphere();
+  return geo;
+};
+const stepBake = () => {
+  if (!bake || bake.phase !== 'job') return;
+  if (bake.i < bake.groups.length) {
+    const g = bake.groups[bake.i++];
+    const mesh = new THREE.Mesh(mergeParts(g.parts), g.mat);
+    mesh.castShadow = g.cast; mesh.receiveShadow = g.recv; mesh.renderOrder = g.order; mesh.frustumCulled = g.culled;
+    mesh.matrixAutoUpdate = false;
+    bake.built.push(mesh);
+    return;
+  }
+  // everything merged: swap in one go
+  for (const m of bake.built) bakeGroup.add(m);
+  for (const c of bake.roots) bouquet.remove(c);
+  for (const o of bake.hidden) o.visible = false;
+  bake.phase = 'done';
+  renderer.shadowMap.needsUpdate = true;
+};
+
 const sync3D = () => {
+  unbake();
   if (!T.rose || !ribbonModel) return;
   if (!app.S.items.length) app.S.wrapped = false;
   syncFlowers(); syncCard(); syncPicks();
@@ -1181,6 +1285,7 @@ const setStudioTier = tier => {
 }
 const draw = (sc, cam) => presenter.render(sc, cam, { exposure: renderer.toneMappingExposure, fxaa: true });
 let skipDraw = false, fullRate = true;
+let settledAt = 0;
 const stepStudio = (dt, t) => {
   // quality is judged only on full-rate frames (while the user turns the bouquet)
   if (fullRate) studioWatch(dt);
@@ -1223,6 +1328,10 @@ const stepStudio = (dt, t) => {
     fy = e * 1.8; fs = 1 - 0.55 * e; bouquet.rotation.y += dt * 2.5 * e;
     if (flight.t >= 1.0) { const done = flight.done; flight = null; bouquet.rotation.y = 0; done(); }
   }
+  // merge the bouquet once it has stood still for a moment; any movement brings the live parts back
+  if (moving || flight) { unbake(); settledAt = t; }
+  else if (!bake && t - settledAt > 0.9 && app.S.items.length) startBake();
+  stepBake();
   bouquet.position.y = (reduceMotion ? 0 : Math.sin(t * 0.9) * 0.008) + fy;
   bouquet.scale.setScalar(fs);
   for (const f of flies) {
@@ -1453,8 +1562,9 @@ const api = {
   focusPatch: id => focusPatch(id),
   clearFocus() { gFocus = null; if (selRing) selRing.visible = false; },
   // sending: the bouquet flies up and away, then the table is cleared
-  fly(done) { if (reduceMotion) done(); else flight = { t: 0, done }; },
+  fly(done) { unbake(); if (reduceMotion) done(); else flight = { t: 0, done }; },
   clearTable() {
+    unbake();
     for (const [k, n] of nodes) { bouquet.remove(n.az); nodes.delete(k); }
     wrapP = 0; applyWrap(0); teddyS = 0; teddyV = 0; cardKey = '';
   },
