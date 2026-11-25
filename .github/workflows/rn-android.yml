@@ -141,6 +141,7 @@ jobs:
 
       - name: Sonuçları yükle (rn-test)
         if: always()
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: rn-test
